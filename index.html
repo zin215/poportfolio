@@ -1434,67 +1434,72 @@ const handleCreateManualSnapshot = () => {
   })}
 </div>
 
-      {/* 2. 월말 배당 */}
-      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-md">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
-          <span className="text-sm font-bold text-white flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />📅 월말(말일) 배당형 자산 목록</span>
-          <span className="text-xs text-emerald-300 font-extrabold bg-emerald-950 border border-emerald-800 px-2 py-0.5 rounded">{/* ₩ 표시 앞에 Math.round()를 감싸 소수점을 반올림 처리합니다 */}
-  소계 ₩{Math.round(portfolioStats.endMonthDividend).toLocaleString()}
-</span>
-        </div>
-        <div className="space-y-3">
-  {assets.filter(a => a.dividendType === 'end' && Number(a.dividendAmount) > 0).map(asset => {
-  // 1. 주기에 따른 월 평균 배당금 계산 로직
-  let monthlyAmount = Number(asset.dividendAmount);
-  let label = '/월';
-  let divisor = 1;
-
-  if (asset.dividendMonth === '분기') {
-    divisor = 3;
-    label = '/월(평균)';
-  } else if (asset.dividendMonth === '반기') {
-    divisor = 6;
-    label = '/월(평균)';
-  } else if (asset.dividendMonth === '연간') {
-    divisor = 12;
-    label = '/월(평균)';
-  }
-
-  monthlyAmount = Number(asset.dividendAmount) / divisor;
-  const expectedMonthly = monthlyAmount * Number(asset.quantity);
-
-  return (
-    <div key={asset.id} className="bg-slate-950 p-3.5 rounded-xl border border-slate-800/60 flex items-center justify-between">
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-black text-slate-100">{asset.name}</span>
-          {/* 배당 주기 태그 색상 구분 (연간/반기 추가) */}
-          <span className={`text-[9px] px-1.5 py-0.5 rounded border ${
-            asset.dividendMonth === '분기' ? 'bg-amber-950 border-amber-800 text-amber-300' :
-            asset.dividendMonth === '반기' ? 'bg-emerald-950 border-emerald-800 text-emerald-300' :
-            asset.dividendMonth === '연간' ? 'bg-rose-950 border-rose-800 text-rose-300' :
-            'bg-sky-950 border-sky-800 text-sky-300'
-          }`}>
-            {asset.dividendMonth}
-          </span>
-        </div>
-        <span className="text-[10px] text-slate-500 block">{asset.account} • {Number(asset.quantity).toLocaleString()}주</span>
-      </div>
-      <div className="text-right">
-        <span className="text-xs font-bold text-emerald-400 block">
-          ₩{Math.round(expectedMonthly).toLocaleString()}
-          <span className="text-[10px] text-slate-500">{label}</span>
-        </span>
-        <span className="text-[10px] text-slate-500">주당 ₩{Number(asset.dividendAmount).toLocaleString()}</span>
-      </div>
-    </div>
-  );
-})}
-</div>
-      </div>
-    </div>
+     {/* 2. 월말 배당 */}
+<div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-md">
+  <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+    <span className="text-sm font-bold text-white flex items-center gap-2">
+      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+      📅 월말(말일) 배당형 자산 목록
+    </span>
+    <span className="text-xs text-emerald-300 font-extrabold bg-emerald-950 border border-emerald-800 px-2 py-0.5 rounded">
+      소계 ₩{Math.round(portfolioStats.endMonthDividend).toLocaleString()}
+    </span>
   </div>
-)}
+  
+  <div className="space-y-3">
+    {assets.filter(a => a.dividendType === 'end' && Number(a.dividendAmount) > 0).map(asset => {
+      // 1. 주기에 따른 월 평균 배당금 계산 로직
+      let monthlyAmount = Number(asset.dividendAmount);
+      let label = '/월';
+      let divisor = 1;
+
+      if (asset.dividendMonth === '분기') {
+        divisor = 3;
+        label = '/월(평균)';
+      } else if (asset.dividendMonth === '반기') {
+        divisor = 6;
+        label = '/월(평균)';
+      } else if (asset.dividendMonth === '연간') {
+        divisor = 12;
+        label = '/월(평균)';
+      }
+
+      monthlyAmount = Number(asset.dividendAmount) / divisor;
+      const expectedMonthly = monthlyAmount * Number(asset.quantity);
+
+      return (
+        <div key={asset.id} className="bg-slate-950 p-3.5 rounded-xl border border-slate-800/60 flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-slate-100">{asset.name}</span>
+              {/* 배당 주기 태그 색상 구분 (매월/분기/반기/연간) */}
+              <span className={`text-[9px] px-1.5 py-0.5 rounded border ${
+                asset.dividendMonth === '분기' ? 'bg-amber-950 border-amber-800 text-amber-300' :
+                asset.dividendMonth === '반기' ? 'bg-emerald-950 border-emerald-800 text-emerald-300' :
+                asset.dividendMonth === '연간' ? 'bg-rose-950 border-rose-800 text-rose-300' :
+                'bg-sky-950 border-sky-800 text-sky-300'
+              }`}>
+                {asset.dividendMonth}
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-500 block">
+              {asset.account} • {Number(asset.quantity).toLocaleString()}주
+            </span>
+          </div>
+          <div className="text-right">
+            <span className="text-xs font-bold text-emerald-400 block">
+              ₩{Math.round(expectedMonthly).toLocaleString()}
+              <span className="text-[10px] text-slate-500">{label}</span>
+            </span>
+            <span className="text-[10px] text-slate-500">
+              주당 ₩{Number(asset.dividendAmount).toLocaleString()}
+            </span>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+</div>
 
             {activeTab === 'cheatsheet' && (
   <div className="space-y-6">
