@@ -1081,6 +1081,17 @@ const handleCreateManualSnapshot = () => {
       </tr>
     ))}
   </tbody>
+{/* ★ 새로 추가할 부분: 계좌 총합 표시 */}
+<tfoot className="bg-slate-950 font-bold text-emerald-400">
+  <tr>
+    <td className="py-3 px-2 text-center">계좌 총계</td>
+    <td className="py-3"></td>
+    <td className="py-3"></td>
+    <td className="py-3 text-right pr-4">
+      ₩{Math.round(accountStats[selectedAccountDetailTab]?.value || 0).toLocaleString()}
+    </td>
+  </tr>
+</tfoot>
         </table>
       </div>
     </div>
