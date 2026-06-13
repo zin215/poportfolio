@@ -642,12 +642,14 @@ const handleCreateManualSnapshot = () => {
     <div className="flex flex-col items-center gap-1.5">
       {/* 1. 최상단: 배당 주기 태그 (매월/분기/연간) */}
       <span className={`text-[8px] px-1.5 py-0.4 rounded border ${
-        asset.dividendMonth === '매월' ? 'bg-sky-950 border-sky-800 text-sky-300' : 
-        asset.dividendMonth === '분기' ? 'bg-amber-950 border-amber-800 text-amber-300' : 
-        'bg-slate-800 border-slate-700 text-slate-400'
-      }`}>
-        {asset.dividendMonth}
-      </span>
+  asset.dividendMonth === '매월' ? 'bg-sky-950 border-sky-800 text-sky-300' : 
+  asset.dividendMonth === '분기' ? 'bg-amber-950 border-amber-800 text-amber-300' : 
+  asset.dividendMonth === '반기' ? 'bg-emerald-950 border-emerald-800 text-emerald-300' : 
+  asset.dividendMonth === '연간' ? 'bg-rose-950 border-rose-800 text-rose-300' :
+  'bg-slate-800 border-slate-700 text-slate-400'
+}`}>
+  {asset.dividendMonth}
+</span>
 
       {/* 2. 중앙: 배당금액 */}
       <span className="text-[10px] font-bold text-amber-400">
