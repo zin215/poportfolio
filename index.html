@@ -1388,9 +1388,21 @@ const handleCreateManualSnapshot = () => {
         </div>
         <div className="space-y-3">
   {assets.filter(a => a.dividendType === 'mid' && Number(a.dividendAmount) > 0).map(asset => {
-    // 분기 배당일 경우 3으로 나누어 평균값 계산
-    const isQuarterly = asset.dividendMonth === '분기';
-    const monthlyAmount = isQuarterly ? Number(asset.dividendAmount) / 3 : Number(asset.dividendAmount);
+    // [수정된 로직] 배당 주기에 따른 월 평균 배당금 계산
+    let monthlyAmount = Number(asset.dividendAmount);
+    let label = '/월';
+
+    if (asset.dividendMonth === '분기') {
+      monthlyAmount = Number(asset.dividendAmount) / 3;
+      label = '/월(평균)';
+    } else if (asset.dividendMonth === '반기') {
+      monthlyAmount = Number(asset.dividendAmount) / 6;
+      label = '/월(평균)';
+    } else if (asset.dividendMonth === '연간') {
+      monthlyAmount = Number(asset.dividendAmount) / 12;
+      label = '/월(평균)';
+    }
+
     const expectedMonthly = monthlyAmount * Number(asset.quantity);
 
     return (
@@ -1398,16 +1410,22 @@ const handleCreateManualSnapshot = () => {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="text-xs font-black text-slate-100">{asset.name}</span>
-            <span className={`text-[9px] px-1.5 py-0.5 rounded border ${isQuarterly ? 'bg-amber-950 border-amber-800 text-amber-300' : 'bg-sky-950 border-sky-800 text-sky-300'}`}>
+            {/* 배당 주기 태그 색상 구분 */}
+            <span className={`text-[9px] px-1.5 py-0.5 rounded border ${
+              asset.dividendMonth === '분기' ? 'bg-amber-950 border-amber-800 text-amber-300' :
+              asset.dividendMonth === '반기' ? 'bg-emerald-950 border-emerald-800 text-emerald-300' :
+              asset.dividendMonth === '연간' ? 'bg-rose-950 border-rose-800 text-rose-300' :
+              'bg-sky-950 border-sky-800 text-sky-300'
+            }`}>
               {asset.dividendMonth}
             </span>
           </div>
           <span className="text-[10px] text-slate-500 block">{asset.account} • {Number(asset.quantity).toLocaleString()}주</span>
         </div>
         <div className="text-right">
-          <span className="text-xs font-bold text-teal-400 block">
+          <span className="text-xs font-bold text-emerald-400 block">
             ₩{Math.round(expectedMonthly).toLocaleString()}
-            <span className="text-[10px] text-slate-500">{isQuarterly ? '/월(평균)' : '/월'}</span>
+            <span className="text-[10px] text-slate-500">{label}</span>
           </span>
           <span className="text-[10px] text-slate-500">주당 ₩{Number(asset.dividendAmount).toLocaleString()}</span>
         </div>
@@ -1415,7 +1433,6 @@ const handleCreateManualSnapshot = () => {
     );
   })}
 </div>
-      </div>
 
       {/* 2. 월말 배당 */}
       <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-md">
