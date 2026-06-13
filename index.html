@@ -1,0 +1,1600 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>투자 포트폴리오 대시보드</title>
+
+  <link rel="manifest" href="/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="자산 관리">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="config.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+    body { font-family: 'Inter', 'Noto Sans KR', sans-serif; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #020617; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // 포트폴리오 배당/카테고리 템플릿 DB (시트에 없는 데이터 보완용)
+    const TICKER_DB = {
+      '379800': { category: '주식(미국)', dividendMonth: '매월', dividendAmount: 35, dividendType: 'end' },
+      '446720': { category: '주식(미국)', dividendMonth: '매월', dividendAmount: 32, dividendType: 'mid' },
+      '381170': { category: '주식(미국)', dividendMonth: '분기', dividendAmount: 15, dividendType: 'end' },
+      '426030': { category: '주식(미국)', dividendMonth: '없음', dividendAmount: 0, dividendType: 'end' },
+      '453850': { category: '채권', dividendMonth: '매월', dividendAmount: 51, dividendType: 'end' },
+      '273130': { category: '안전/현금', dividendMonth: '없음', dividendAmount: 0, dividendType: 'end' },
+      '411920': { category: '대체자산/리츠', dividendMonth: '없음', dividendAmount: 0, dividendType: 'end' },
+      '458760': { category: '주식(미국)', dividendMonth: '매월', dividendAmount: 85, dividendType: 'end' },
+      '0118Z0': { category: '주식(미국)', dividendMonth: '매월', dividendAmount: 40, dividendType: 'end' },
+      '367380': { category: '주식(미국)', dividendMonth: '분기', dividendAmount: 20, dividendType: 'end' },
+      '390390': { category: '주식(미국)', dividendMonth: '분기', dividendAmount: 25, dividendType: 'end' },
+      '484880': { category: '주식(국내)', dividendMonth: '매월', dividendAmount: 45, dividendType: 'mid' },
+      '474220': { category: '주식(미국)', dividendMonth: '매월', dividendAmount: 110, dividendType: 'mid' },
+      '395160': { category: '주식(미국)', dividendMonth: '분기', dividendAmount: 15, dividendType: 'end' },
+      '360750': { category: '주식(미국)', dividendMonth: '분기', dividendAmount: 30, dividendType: 'end' }
+    };
+    
+    const getExtraInfo = (ticker) => TICKER_DB[ticker] || { category: '기타/미분류', dividendMonth: '없음', dividendAmount: 0, dividendType: 'end' };
+
+    const CATEGORIES = ['주식(미국)', '주식(국내)', '채권', '대체자산/리츠', '안전/현금'];
+    const ACCOUNTS = ['ISA', '연금저축1', '연금저축2', '연금저축3', 'IRP', '금현물/기타'];
+    const CATEGORY_COLORS = { '주식(미국)': '#10B981', '주식(국내)': '#3B82F6', '채권': '#F59E0B', '대체자산/리츠': '#8B5CF6', '안전/현금': '#6B7280' };
+    const ACCOUNT_BADGES = { 'ISA': 'bg-teal-900/60 text-teal-300 border-teal-500/30', '연금저축1': 'bg-blue-900/60 text-blue-300 border-blue-500/30', '연금저축2': 'bg-sky-900/60 text-sky-300 border-sky-500/30', '연금저축3': 'bg-indigo-900/60 text-indigo-300 border-indigo-500/30', 'IRP': 'bg-purple-900/60 text-purple-300 border-purple-500/30', '금현물/기타': 'bg-amber-900/60 text-amber-300 border-amber-500/30' };
+
+    function App() {
+      // 상태 관리
+      const [assets, setAssets] = useState([]);
+      const [targetWeights, setTargetWeights] = useState({ '주식(미국)': 45, '주식(국내)': 5, '채권': 25, '대체자산/리츠': 10, '안전/현금': 15 });
+      const [snapshots, setSnapshots] = useState([]);
+     const [gasUrl, setGasUrl] = useState(() => {
+  if (typeof APP_URL !== 'undefined' && APP_URL) {
+    return APP_URL;
+  }
+  return localStorage.getItem('ttokjae_v8_gas_url') || '';
+});
+      const [driveSyncStatus, setDriveSyncStatus] = useState('disconnected');
+      
+      const [activeTab, setActiveTab] = useState('dashboard');
+      const [editingAsset, setEditingAsset] = useState(null);
+      const [showAddModal, setShowAddModal] = useState(false);
+      const [showBackupCenter, setShowBackupCenter] = useState(false);
+      const [mobileBackupInput, setMobileBackupInput] = useState('');
+      const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, message: '', onConfirm: null });
+      const [isSyncingPrice, setIsSyncingPrice] = useState(false);
+      
+      const [searchQuery, setSearchQuery] = useState('');
+      const [selectedAccountFilter, setSelectedAccountFilter] = useState('전체');
+      const [selectedAccountDetailTab, setSelectedAccountDetailTab] = useState('ISA');
+      const [newCapital, setNewCapital] = useState(0);
+      const [notification, setNotification] = useState(null);
+
+      const [calcInit, setCalcInit] = useState(50000000);
+      const [calcMonthly, setCalcMonthly] = useState(1000000);
+      const [calcYears, setCalcYears] = useState(20);
+      const [calcRate, setCalcRate] = useState(7);
+      const [trendPeriod, setTrendPeriod] = useState(12);
+      const [hoveredPoint, setHoveredPoint] = useState(null);
+const [withdrawalRate, setWithdrawalRate] = useState(4);
+
+      // 로컬 스토리지 초기 로드
+      useEffect(() => {
+        const localAssets = localStorage.getItem('ttokjae_portfolio_v8');
+        const localWeights = localStorage.getItem('ttokjae_target_weights_v8');
+        const localSnapshots = localStorage.getItem('ttokjae_snapshots_v8');
+        if (localAssets) setAssets(JSON.parse(localAssets));
+        if (localWeights) setTargetWeights(JSON.parse(localWeights));
+        if (localSnapshots) setSnapshots(JSON.parse(localSnapshots));
+      }, []);
+
+      const saveToLocal = (newAssets, newWeights, newSnaps) => {
+        localStorage.setItem('ttokjae_portfolio_v8', JSON.stringify(newAssets));
+        localStorage.setItem('ttokjae_target_weights_v8', JSON.stringify(newWeights));
+        localStorage.setItem('ttokjae_snapshots_v8', JSON.stringify(newSnaps));
+      };
+
+      const triggerNotification = (message, type = 'success') => {
+        setNotification({ message, type });
+        setTimeout(() => setNotification(null), 3500);
+      };
+
+      const openConfirm = (message, onConfirm) => {
+        setConfirmDialog({ isOpen: true, message, onConfirm });
+      };
+
+    // [V8.0 핵심 엔진] 구글 시트에서 데이터 읽어오기 (분류 및 배당 정보 정상 연동 패치)
+      const handleLoadFromSheet = async () => {
+        if (!gasUrl) {
+          triggerNotification('구글 Apps Script 웹 앱 URL을 먼저 입력해주세요.', 'error');
+          setShowBackupCenter(true); return;
+        }
+        setDriveSyncStatus('connecting');
+        try {
+          const res = await fetch(gasUrl);
+          const rawData = await res.json();
+          
+          const confRes = await fetch(`${gasUrl}?action=load_config`);
+          const confData = await confRes.json();
+
+          if (Array.isArray(rawData)) {
+            const parsedAssets = rawData.map((row, index) => {
+              // 00 잘림 방지 (6자리 보정)
+              let cleanTicker = String(row.ticker).replace('KRX:', '').trim().toUpperCase();
+              if (/^\d+$/.test(cleanTicker)) cleanTicker = cleanTicker.padStart(6, '0');
+              
+              // 1. 한글 계좌명 매칭 (ACCOUNTS 배열에 있는 명칭인지 확인)
+              const accKey = ACCOUNTS.includes(row.account) ? row.account : '기타';
+              
+              // 2. 완성된 자산 객체 반환 (★ 시트에서 넘어온 분류 및 배당 정보 우선 적용, 없을 때만 DB 참조)
+              const backupInfo = getExtraInfo(cleanTicker);
+              
+            // Apps Script 백엔드가 보낸 주기 정보를 dividendMonth로 통일 흡수
+              const sPeriod = row.dividendPeriod || row.dividendMonth;
+
+              return {
+                id: `sheet-${Date.now()}-${index}`,
+                account: accKey,
+                name: String(row.name).trim(),
+                ticker: cleanTicker,
+                quantity: Number(row.quantity) || 0,
+                price: Number(row.price) || 0,
+                currentPrice: (row.currentPrice === 'N/A' || !row.currentPrice) ? 'N/A' : Number(row.currentPrice),
+                category: row.category ? String(row.category).trim() : backupInfo.category,
+                // 이 변수명이 dividendMonth여야 대시보드 그래프 엔진이 정상 작동합니다.
+                dividendMonth: sPeriod ? String(sPeriod).trim() : backupInfo.dividendMonth,
+                dividendAmount: row.dividendAmount !== undefined ? Number(row.dividendAmount) || 0 : backupInfo.dividendAmount,
+                dividendType: row.dividendType ? String(row.dividendType).trim() : backupInfo.dividendType
+              };
+            }); // map 함수 종료
+
+            // [추가된 버그 수정 핵심 로직] 구글 시트 백업본에서 넘어온 날짜 중 왜곡된 데이터 강제 교정
+            let parsedSnapshots = [];
+            if (confData.snapshots && Array.isArray(confData.snapshots)) {
+              const today = new Date();
+              const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+              
+              parsedSnapshots = confData.snapshots.map(s => {
+                if (s.memo && s.memo.includes('실시간 자동 결산') && s.date !== currentMonthKey) {
+                  return { 
+                    ...s, 
+                    date: currentMonthKey, 
+                    memo: `${currentMonthKey} 실시간 자동 결산` 
+                  };
+                }
+                return s;
+              });
+            }
+
+            setAssets(parsedAssets);
+            if (confData.targetWeights) setTargetWeights(confData.targetWeights);
+            
+            const finalSnaps = parsedSnapshots.length > 0 ? parsedSnapshots : snapshots;
+            setSnapshots(finalSnaps);
+            
+            saveToLocal(parsedAssets, confData.targetWeights || targetWeights, finalSnaps);
+            setDriveSyncStatus('connected');
+            triggerNotification('구글 시트 연동 완료! 모든 자산을 불러왔습니다. 🎉');
+            setShowBackupCenter(false);
+          } else {
+            setDriveSyncStatus('error'); triggerNotification('시트 데이터 형식이 올바르지 않습니다.', 'error');
+          }
+        } catch (err) {
+          setDriveSyncStatus('error'); console.error(err);
+          triggerNotification('연결 실패. 배포 권한(모든 사람)을 확인해주세요.', 'error');
+        }
+      };
+
+      // V8.0 개별 행 수정(update) / 신규 추가(append) API 호출
+      const syncSingleRow = async (asset, isNew = false) => {
+  if (!gasUrl) return;
+  setDriveSyncStatus('syncing');
+  try {
+    const payload = { 
+      action: isNew ? 'append' : 'update', 
+      account: asset.account, 
+      ticker: asset.ticker, 
+      name: asset.name, 
+      quantity: asset.quantity, 
+      price: asset.price, 
+      currentPrice: asset.currentPrice,
+      // 🔥 구글 시트 백엔드로 배당 데이터 전송 추가
+      dividendMonth: asset.dividendMonth,
+      dividendAmount: asset.dividendAmount,
+      dividendType: asset.dividendType
+    };
+    const res = await fetch(gasUrl, { method: 'POST', body: JSON.stringify(payload) });
+    const result = await res.json();
+    if (result.status === 'success') setDriveSyncStatus('connected');
+    else setDriveSyncStatus('error');
+  } catch (e) { setDriveSyncStatus('error'); }
+};
+
+      // V8.0 개별 행 삭제 API 호출
+      const syncDeleteRow = async (asset) => {
+        if (!gasUrl) return;
+        setDriveSyncStatus('syncing');
+        try {
+          const payload = { action: 'delete', account: asset.account, ticker: asset.ticker };
+          const res = await fetch(gasUrl, { method: 'POST', body: JSON.stringify(payload) });
+          const result = await res.json();
+          if (result.status === 'success') setDriveSyncStatus('connected');
+          else setDriveSyncStatus('error');
+        } catch (e) { setDriveSyncStatus('error'); }
+      };
+
+     // 전체 덮어쓰기 (수동 저장 및 일괄 갱신 시) - 배당 주기 명칭 호환 패치
+      const triggerCloudSyncAll = async (nextAssets, nextWeights, nextSnaps) => {
+        saveToLocal(nextAssets, nextWeights, nextSnaps);
+        if (gasUrl) {
+          setDriveSyncStatus('syncing');
+          try {
+            // 대시보드 전용 'dividendMonth' 변수명을 시트 백엔드 수신 규격인 'dividendPeriod'로 변환 매핑
+            const mappedAssetsForSheet = nextAssets.map(a => ({
+              account: a.account, 
+              ticker: a.ticker, 
+              name: a.name, 
+              quantity: a.quantity, 
+              price: a.price, 
+              currentPrice: a.currentPrice,
+              category: a.category, 
+              dividendPeriod: a.dividendMonth, // 여기서 이름을 맞추어 줍니다!
+              dividendAmount: a.dividendAmount, 
+              dividendType: a.dividendType
+            }));
+            
+            const res = await fetch(gasUrl, { 
+              method: 'POST', 
+              body: JSON.stringify({ action: 'save_all', payload: { assets: mappedAssetsForSheet, targetWeights: nextWeights, snapshots: nextSnaps } }) 
+            });
+            const result = await res.json();
+            if (result.status === 'success') setDriveSyncStatus('connected');
+            else throw new Error();
+          } catch (e) { setDriveSyncStatus('error'); }
+        }
+      };
+
+      const handleManualSave = () => {
+        triggerCloudSyncAll(assets, targetWeights, snapshots);
+        triggerNotification('구글 시트 전체 동기화 및 로컬 백업이 완료되었습니다!', 'success');
+      };
+
+      const handleSaveAsset = (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  
+  // 티커 처리 로직
+  let rawTicker = (formData.get('ticker') || '000000').replace('KRX:', '').trim().toUpperCase();
+  if (/^\d+$/.test(rawTicker)) rawTicker = rawTicker.padStart(6, '0');
+  
+  // 데이터 객체 생성 (배당 필드 명시적으로 추가)
+  const assetData = {
+    id: editingAsset ? editingAsset.id : `sheet-${Date.now()}`, 
+    account: formData.get('account'), 
+    name: formData.get('name'), 
+    ticker: rawTicker,
+    quantity: Number(formData.get('quantity')) || 0, 
+    price: Number(formData.get('price')) || 0, 
+    currentPrice: Number(formData.get('currentPrice')) || 0,
+    category: formData.get('category'),
+    // 🔥 아래 필드들을 formData에서 정확히 가져와야 합니다!
+    dividendMonth: formData.get('dividendMonth'), 
+    dividendAmount: Number(formData.get('dividendAmount')) || 0, 
+    dividendType: formData.get('dividendType'), 
+    memo: formData.get('memo') || ''
+  };
+
+  let nextAssets;
+  if (editingAsset) {
+    nextAssets = assets.map(a => a.id === editingAsset.id ? assetData : a);
+    triggerNotification('자산 정보가 수정되어 시트에 반영됩니다.');
+    syncSingleRow(assetData, false);
+  } else {
+    nextAssets = [...assets, assetData];
+    triggerNotification('새 자산이 시트에 추가되었습니다.');
+    syncSingleRow(assetData, true);
+  }
+  
+  setAssets(nextAssets); 
+  saveToLocal(nextAssets, targetWeights, snapshots);
+  setEditingAsset(null); 
+  setShowAddModal(false);
+};
+
+      const handleDeleteAsset = (asset) => {
+        openConfirm(`[${asset.name}] 자산을 삭제하시겠습니까?`, () => {
+          const nextAssets = assets.filter(a => a.id !== asset.id);
+          setAssets(nextAssets); saveToLocal(nextAssets, targetWeights, snapshots);
+          syncDeleteRow(asset);
+          triggerNotification('자산이 삭제되었습니다.', 'error');
+        });
+      };
+
+      const handleBackupSheet = async () => {
+        if (!gasUrl) return alert("GAS 웹 앱 URL을 먼저 입력해주세요.");
+        setDriveSyncStatus('syncing');
+        try {
+          const res = await fetch(gasUrl, { method: 'POST', body: JSON.stringify({ action: 'backup' }) });
+          const result = await res.json();
+          if(result.status === 'backup_complete') {
+            alert(`백업 성공!\n드라이브에 저장된 파일명: ${result.fileName}`);
+            setDriveSyncStatus('connected');
+          }
+        } catch (e) { alert("백업 중 오류가 발생했습니다."); setDriveSyncStatus('error'); }
+      };
+
+      // 수익률 및 총합계산 (N/A 안전장치 적용)
+      const portfolioStats = useMemo(() => {
+        let totalInvested = 0, totalCurrent = 0, totalAnnualDividend = 0, midMonthDividend = 0, endMonthDividend = 0;
+        assets.forEach(asset => {
+          const invested = Number(asset.quantity) * Number(asset.price);
+          const current = Number(asset.quantity) * (asset.currentPrice === 'N/A' ? Number(asset.price) : Number(asset.currentPrice));
+          totalInvested += invested; totalCurrent += current;
+          let annualDiv = 0;
+          if (asset.dividendMonth === '매월') { annualDiv = Number(asset.dividendAmount) * 12 * Number(asset.quantity); if (asset.dividendType === 'mid') midMonthDividend += Number(asset.dividendAmount) * Number(asset.quantity); else endMonthDividend += Number(asset.dividendAmount) * Number(asset.quantity); } 
+          else if (asset.dividendMonth === '분기') { annualDiv = Number(asset.dividendAmount) * 4 * Number(asset.quantity); if (asset.dividendType === 'mid') midMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 3; else endMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 3; }
+          else if (asset.dividendMonth === '반기') { annualDiv = Number(asset.dividendAmount) * 2 * Number(asset.quantity); } 
+          else if (asset.dividendMonth === '연간') { annualDiv = Number(asset.dividendAmount) * Number(asset.quantity); }
+          totalAnnualDividend += annualDiv;
+        });
+        const totalProfit = totalCurrent - totalInvested;
+        const profitRate = totalInvested > 0 ? (totalProfit / totalInvested) * 100 : 0;
+        const dividendYield = totalCurrent > 0 ? (totalAnnualDividend / totalCurrent) * 100 : 0;
+        return { totalInvested, totalCurrent, totalProfit, profitRate, totalAnnualDividend, dividendYield, midMonthDividend, endMonthDividend };
+      }, [assets]);
+
+    // 스냅샷 엔진 (기준 연월 +1 버그 수정 및 시트 불러오기 시 유지 로직 보완)
+      useEffect(() => {
+        if (portfolioStats.totalCurrent === 0) return;
+        
+        // ★ 날짜 가드 수정: getMonth()에 반드시 +1을 더해 5월이 정상 출력되도록 보정
+        const today = new Date();
+        const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+        
+        setSnapshots(prev => {
+          // 구글 시트 백업 등에서 덮어쓰기 되더라도 현재 월 실시간 스냅샷이 누락되지 않도록 방어
+          const existingIdx = prev.findIndex(s => s.date === currentMonthKey);
+          const newSnapshotData = { 
+            id: existingIdx >= 0 ? prev[existingIdx].id : `s-auto-${currentMonthKey}`, 
+            date: currentMonthKey, 
+            total: portfolioStats.totalCurrent, 
+            invested: portfolioStats.totalInvested, 
+            profit: portfolioStats.totalProfit, 
+            memo: existingIdx >= 0 ? prev[existingIdx].memo : `${currentMonthKey} 실시간 자동 결산` 
+          };
+          
+          if (existingIdx >= 0) {
+            const ex = prev[existingIdx];
+            if (ex.total === newSnapshotData.total && ex.invested === newSnapshotData.invested) return prev;
+            const updated = [...prev]; 
+            updated[existingIdx] = newSnapshotData; 
+            return updated;
+          } else { 
+            return [...prev, newSnapshotData].sort((a, b) => (a.date || "").localeCompare(b.date || "")); 
+          }
+        });
+      }, [portfolioStats.totalCurrent, portfolioStats.totalInvested]);
+
+    // ★ 저장된 데이터는 '수정 금지' 처리
+const handleCreateManualSnapshot = () => {
+  const currentMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+  
+  // 1. 이미 같은 달에 저장된 데이터가 있는지 확인 (있으면 덮어쓰기 허용 여부 결정)
+  const isExisting = snapshots.find(s => s.date === currentMonthKey);
+  
+  if (isExisting && !confirm("이미 저장된 기록이 있습니다. 덮어쓰시겠습니까?")) {
+    return; // 취소 시 함수 종료
+  }
+
+  const newSnapshotData = { 
+    id: isExisting ? isExisting.id : `s-manual-${Date.now()}`, 
+    date: currentMonthKey, 
+    total: portfolioStats.totalCurrent, 
+    invested: portfolioStats.totalInvested, 
+    profit: portfolioStats.totalProfit, 
+    memo: `${currentMonthKey} 수동 결산 저장` 
+  };
+
+  // 2. 덮어쓰기 또는 새로 추가
+  let nextSnapshots;
+  if (isExisting) {
+    nextSnapshots = snapshots.map(s => s.date === currentMonthKey ? newSnapshotData : s);
+  } else {
+    nextSnapshots = [...snapshots, newSnapshotData].sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  setSnapshots(nextSnapshots);
+  triggerCloudSyncAll(assets, targetWeights, nextSnapshots);
+  triggerNotification('💾 스냅샷이 안전하게 저장되었습니다.');
+};
+
+      // ★ 시트 불러오기 작동 후 실시간 스냅샷 유실을 방지하기 위한 트리거 감지 엔진 추가
+      useEffect(() => {
+        if (driveSyncStatus === 'connected' && portfolioStats.totalCurrent > 0) {
+          const today = new Date();
+          const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+          
+          setSnapshots(prev => {
+            if (prev.some(s => s.date === currentMonthKey)) return prev;
+            const newSnapshotData = { 
+              id: `s-auto-${currentMonthKey}`, 
+              date: currentMonthKey, 
+              total: portfolioStats.totalCurrent, 
+              invested: portfolioStats.totalInvested, 
+              profit: portfolioStats.totalProfit, 
+              memo: `${currentMonthKey} 실시간 자동 결산` 
+            };
+            return [...prev, newSnapshotData].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+          });
+        }
+      }, [driveSyncStatus]);
+
+      const categoryStats = useMemo(() => {
+        const stats = {}; CATEGORIES.forEach(cat => stats[cat] = { value: 0, percent: 0 });
+        assets.forEach(asset => { if (stats[asset.category]) stats[asset.category].value += Number(asset.quantity) * (asset.currentPrice === 'N/A' ? asset.price : asset.currentPrice); });
+        CATEGORIES.forEach(cat => { if (portfolioStats.totalCurrent > 0) stats[cat].percent = (stats[cat].value / portfolioStats.totalCurrent) * 100; });
+        return stats;
+      }, [assets, portfolioStats.totalCurrent]);
+
+      const accountStats = useMemo(() => {
+        const stats = {}; ACCOUNTS.forEach(acc => stats[acc] = { value: 0, percent: 0, invested: 0, profit: 0, profitRate: 0, annualDividend: 0 });
+        assets.forEach(asset => {
+          if (stats[asset.account]) {
+            const invested = Number(asset.quantity) * Number(asset.price);
+            const current = Number(asset.quantity) * (asset.currentPrice === 'N/A' ? asset.price : asset.currentPrice);
+            stats[asset.account].value += current; stats[asset.account].invested += invested;
+            let annualDiv = 0;
+            if (asset.dividendMonth === '매월') annualDiv = Number(asset.dividendAmount) * 12 * Number(asset.quantity);
+            else if (asset.dividendMonth === '분기') annualDiv = Number(asset.dividendAmount) * 4 * Number(asset.quantity);
+            else if (asset.dividendMonth === '반기') annualDiv = Number(asset.dividendAmount) * 2 * Number(asset.quantity);
+            else if (asset.dividendMonth === '연간') annualDiv = Number(asset.dividendAmount) * Number(asset.quantity);
+            stats[asset.account].annualDividend += annualDiv;
+          }
+        });
+        ACCOUNTS.forEach(acc => {
+          if (portfolioStats.totalCurrent > 0) stats[acc].percent = (stats[acc].value / portfolioStats.totalCurrent) * 100;
+          stats[acc].profit = stats[acc].value - stats[acc].invested;
+          stats[acc].profitRate = stats[acc].invested > 0 ? (stats[acc].profit / stats[acc].invested) * 100 : 0;
+        });
+        return stats;
+      }, [assets, portfolioStats.totalCurrent]);
+
+      const selectedAccountAssets = useMemo(() => assets.filter(asset => asset.account === selectedAccountDetailTab), [assets, selectedAccountDetailTab]);
+      const rebalancingCalculations = useMemo(() => {
+        const targetTotalWithNewCapital = portfolioStats.totalCurrent + Number(newCapital);
+        return CATEGORIES.map(cat => {
+          const currentVal = categoryStats[cat]?.value || 0; const currentPct = categoryStats[cat]?.percent || 0;
+          const targetPct = targetWeights[cat] || 0; const idealVal = targetTotalWithNewCapital * (targetPct / 100);
+          return { category: cat, currentVal, currentPct, targetPct, idealVal, difference: idealVal - currentVal };
+        });
+      }, [categoryStats, targetWeights, portfolioStats.totalCurrent, newCapital]);
+
+      const targetWeightsSum = useMemo(() => Object.values(targetWeights).reduce((a, b) => a + Number(b), 0), [targetWeights]);
+      const filteredAssets = useMemo(() => assets.filter(asset => (asset.name.toLowerCase().includes(searchQuery.toLowerCase()) || asset.ticker.includes(searchQuery)) && (selectedAccountFilter === '전체' || asset.account === selectedAccountFilter)), [assets, searchQuery, selectedAccountFilter]);
+      
+     const trendData = useMemo(() => {
+  const standardized = snapshots.map(s => {
+    if (!s.date) return { ...s, date: "" };
+    let dateStr = String(s.date);
+    // 영문 표기나 GMT 형식이 섞여있다면 YYYY-MM 포맷으로 강제 표준화
+    if (dateStr.includes("GMT") || (isNaN(Number(s.date)) && Date.parse(dateStr))) {
+      const d = new Date(dateStr);
+      dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+    return { ...s, date: dateStr };
+  });
+
+  const sorted = standardized.sort((a, b) => a.date.localeCompare(b.date));
+  if (trendPeriod === 6) return sorted.slice(-6); 
+  else if (trendPeriod === 12) return sorted.slice(-12); 
+  else return sorted;
+}, [snapshots, trendPeriod]);
+
+      const annualPerformance = useMemo(() => {
+        const yearsMap = {}; snapshots.forEach(s => { const year = s.date.substring(0, 4); if (!yearsMap[year]) yearsMap[year] = []; yearsMap[year].push(s); });
+        const results = [];
+        Object.keys(yearsMap).forEach(year => {
+          const yearData = yearsMap[year].sort((a, b) => a.date.localeCompare(b.date));
+          const first = yearData[0], last = yearData[yearData.length - 1];
+          results.push({ year, startTotal: first.total, endTotal: last.total, startInvested: first.invested, endInvested: last.invested, totalGrowth: last.total - first.total, investedGrowth: last.invested - first.invested, startProfitRate: first.invested > 0 ? (first.profit / first.invested) * 100 : 0, endProfitRate: last.invested > 0 ? (last.profit / last.invested) * 100 : 0, yieldRate: first.total > 0 ? ((last.total - first.total) / first.total) * 100 : 0, snapshotCount: yearData.length });
+        });
+        return results.sort((a, b) => b.year.localeCompare(a.year));
+      }, [snapshots]);
+
+     const chartMetrics = useMemo(() => {
+  const width = 600, height = 180, paddingLeft = 65, paddingRight = 15, paddingTop = 20, paddingBottom = 25;
+  const plotWidth = width - paddingLeft - paddingRight, plotHeight = height - paddingTop - paddingBottom;
+  
+  // 시트의 헤더인 Total, Principal, Profit을 기준으로 데이터 추출
+  const values = trendData.map(d => Number(d.total) || 0); 
+  const maxVal = Math.max(...values, 1000000); 
+  const minVal = Math.max((values.length > 0 ? Math.min(...values) : 0) * 0.95, 0);
+  
+  const points = trendData.map((item, idx) => ({ 
+  x: paddingLeft + (idx / (Math.max(trendData.length - 1, 1))) * plotWidth, 
+  y: paddingTop + plotHeight - ((Number(item.total) - minVal) / (maxVal - minVal || 1)) * plotHeight, // item.Total -> item.total
+  month: item.date, // item.date -> item.date
+  value: Number(item.total), // item.Total -> item.total
+  invested: Number(item.invested), // item.Principal -> item.invested
+  profit: Number(item.profit) // item.Profit -> item.profit
+}));
+  
+  let linePath = '', areaPath = '';
+  if (points.length > 0) { 
+    linePath = `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' '); 
+    areaPath = `${linePath} L ${points[points.length - 1].x} ${height - paddingBottom} L ${points[0].x} ${height - paddingBottom} Z`; 
+  }
+  
+  const yGridValues = Array.from({ length: 4 }, (_, i) => ({ 
+    val: minVal + (i / 3) * (maxVal - minVal), 
+    y: paddingTop + plotHeight - (i / 3) * plotHeight 
+  }));
+  
+  return { width, height, paddingLeft, paddingRight, paddingTop, paddingBottom, plotWidth, plotHeight, points, linePath, areaPath, yGridValues, maxVal, minVal };
+}, [trendData]);
+
+      const handleDeleteSnapshot = (id, date) => {
+        const currentMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+        if (date === currentMonthKey) return triggerNotification('이번 달 자동 스냅샷은 삭제 불가', 'error');
+        openConfirm(`[${date}] 데이터를 삭제하시겠습니까?`, () => {
+          const nextSnaps = snapshots.filter(s => s.id !== id); setSnapshots(nextSnaps); triggerCloudSyncAll(assets, targetWeights, nextSnaps);
+        });
+      };
+
+      const handleSyncPrices = async () => {
+        setIsSyncingPrice(true); triggerNotification('📡 시세 업데이트 중...', 'info');
+        try {
+          const updatedAssets = await Promise.all(assets.map(async (asset) => {
+            const ticker = asset.ticker?.trim().toUpperCase(); if (!ticker || ticker.length < 2) return asset;
+            let newPrice = null; const noCache = Date.now();
+            if (/^\d{6}$/.test(ticker)) {
+              try { const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(`https://polling.finance.naver.com/api/realtime/domestic/stock/${ticker}?_=${noCache}`)}`); const data = await res.json(); if(data.contents) newPrice = JSON.parse(data.contents)?.result?.datas?.[0]?.nv; } catch (e) {}
+            }
+            if (newPrice) return { ...asset, currentPrice: Number(newPrice) }; return asset;
+          }));
+          setAssets(updatedAssets); triggerCloudSyncAll(updatedAssets, targetWeights, snapshots); triggerNotification(`✅ 시세 및 클라우드 갱신 완료!`, 'success');
+        } catch (e) { triggerNotification('❌ 네트워크 에러', 'error'); } 
+        finally { setIsSyncingPrice(false); }
+      };
+
+      const calculatedFutureValue = useMemo(() => {
+        let total = calcInit; 
+        const mRate = (calcRate / 100) / 12; 
+        const tMonths = calcYears * 12;
+        
+        for (let i = 0; i < tMonths; i++) {
+          total = (total + calcMonthly) * (1 + mRate);
+        }
+        
+        // 💡 0.04 고정 대신 변수(withdrawalRate) 적용
+        const annualWithdrawal = total * (withdrawalRate / 100);
+        const monthlyWithdrawal = annualWithdrawal / 12;
+
+        return { 
+          total: Math.round(total), 
+          annualWithdrawal: Math.round(annualWithdrawal), 
+          monthlyWithdrawal: Math.round(monthlyWithdrawal) 
+        };
+      // 💡 의존성 배열 맨 끝에 withdrawalRate 추가 완료
+      }, [calcInit, calcMonthly, calcYears, calcRate, withdrawalRate]);
+
+      // 인라인 행 저장 로직을 위한 V8.0 특수 컴포넌트
+      const AssetRow = ({ asset, onSave, onDelete, onEdit }) => {
+        const [editData, setEditData] = useState({ ...asset });
+        const isPriceMissing = asset.currentPrice === 'N/A' || asset.currentPrice === 0 || asset.currentPrice === '';
+        
+        const handleChange = (e) => setEditData({ ...editData, [e.target.name]: e.target.value });
+        const handleSaveClick = () => { 
+          const cleanedData = {...editData, ticker: editData.ticker.replace('KRX:','').trim().toUpperCase()};
+          onSave(cleanedData); 
+        };
+        
+        const isModified = editData.quantity != asset.quantity || editData.price != asset.price || editData.currentPrice != asset.currentPrice || editData.name != asset.name;
+        const currentVal = editData.quantity * (editData.currentPrice === 'N/A' ? editData.price : editData.currentPrice);
+        const investedVal = editData.quantity * editData.price;
+        const profit = currentVal - investedVal;
+        const profitPct = investedVal > 0 ? (profit / investedVal) * 100 : 0;
+        const accWeight = (currentVal / (accountStats[asset.account]?.value || 1)) * 100;
+
+       return (
+  <tr className="hover:bg-slate-800/30 transition-colors">
+    <td className="py-4 px-4 font-bold"><span className={`text-[10px] px-2 py-0.5 rounded-full border ${ACCOUNT_BADGES[asset.account] || 'bg-slate-800 text-slate-300 border-slate-700'}`}>{asset.account}</span></td>
+    <td className="py-4 px-4">
+      <input type="text" name="name" value={editData.name} onChange={handleChange} className="bg-transparent w-full focus:outline-none focus:border-b focus:border-emerald-500 font-extrabold text-slate-100"/>
+      <div className="text-[10px] text-slate-500 font-semibold mt-0.5">{asset.ticker}</div>
+    </td>
+    <td className="py-4 px-4 font-medium"><span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[asset.category] }} />{asset.category}</span></td>
+    <td className="py-4 px-4 text-right"><input type="number" name="quantity" value={editData.quantity} onChange={handleChange} className="bg-transparent w-16 text-right focus:outline-none focus:border-b focus:border-emerald-500 font-bold text-slate-200"/></td>
+    <td className="py-4 px-4 text-right"><input type="number" name="price" value={editData.price} onChange={handleChange} className="bg-transparent w-20 text-right focus:outline-none focus:border-b focus:border-emerald-500 text-slate-400"/></td>
+    <td className="py-4 px-4 text-right">
+      {isPriceMissing ? (<input type="number" name="currentPrice" value={editData.currentPrice==='N/A'?'':editData.currentPrice} onChange={handleChange} placeholder="수동입력" className="bg-slate-900 border border-rose-500 rounded px-2 py-1 w-20 text-right text-rose-300 focus:outline-none focus:border-rose-400"/>)
+      : (<input type="number" name="currentPrice" value={editData.currentPrice} onChange={handleChange} className="bg-transparent w-20 text-right focus:outline-none focus:border-b focus:border-emerald-500 text-sky-300"/>)}
+    </td>
+
+    <td className="py-4 px-4 text-right font-black text-white">₩{currentVal.toLocaleString()}</td>
+    <td className={`py-4 px-4 text-right font-bold ${profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}><div>{profit >= 0 ? '+' : ''}₩{(profit || 0).toLocaleString()}</div><div className="text-[10px] font-semibold">{profit >= 0 ? '▲' : '▼'}{profitPct.toFixed(1)}%</div></td>
+
+    {/* 🔥 배당 정보 열 추가 */}
+   <td className="py-4 px-4 text-center">
+  {Number(asset.dividendAmount) > 0 ? (
+    <div className="flex flex-col items-center gap-1.5">
+      {/* 1. 최상단: 배당 주기 태그 (매월/분기/연간) */}
+      <span className={`text-[8px] px-1.5 py-0.4 rounded border ${
+        asset.dividendMonth === '매월' ? 'bg-sky-950 border-sky-800 text-sky-300' : 
+        asset.dividendMonth === '분기' ? 'bg-amber-950 border-amber-800 text-amber-300' : 
+        'bg-slate-800 border-slate-700 text-slate-400'
+      }`}>
+        {asset.dividendMonth}
+      </span>
+
+      {/* 2. 중앙: 배당금액 */}
+      <span className="text-[10px] font-bold text-amber-400">
+        ₩{Number(asset.dividendAmount).toLocaleString()}
+      </span>
+
+      {/* 3. 하단: 배당 지급일 유형 */}
+      <span className="text-[9px] text-teal-400">
+        {asset.dividendType === 'mid' ? '🗓️ 월중(15일)' : '🗓️ 월말(말일)'}
+      </span>
+    </div>
+  ) : (
+    <span className="text-slate-600 text-[10px]">-</span>
+  )}
+</td>
+
+  
+    <td className="py-4 px-4 text-center">
+      <div className="flex items-center justify-center gap-2">
+        <button onClick={() => onEdit(asset)} className="text-slate-400 hover:text-emerald-400 text-xs font-semibold">✏️ 수정</button>
+        <button onClick={() => onDelete(asset)} className="text-slate-400 hover:text-rose-400 text-xs font-semibold">🗑️ 삭제</button>
+      </div>
+    </td>
+  </tr>
+);
+      };
+
+      return (
+        <div className="pb-24">
+          {notification && (
+            <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100]">
+              <div className={`px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 text-sm font-bold border ${notification.type === 'error' ? 'bg-rose-950/90 text-rose-200 border-rose-800' : 'bg-emerald-950/90 text-emerald-200 border-emerald-800'}`}>{notification.message}</div>
+            </div>
+          )}
+          {confirmDialog.isOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 px-4">
+              <div className="bg-slate-900 border border-slate-750 rounded-2xl w-full max-w-sm p-6 space-y-4">
+                <h3 className="text-lg font-bold text-white">⚠️ 확인</h3><p className="text-sm text-slate-300">{confirmDialog.message}</p>
+                <div className="flex justify-end gap-3"><button onClick={() => setConfirmDialog({isOpen:false})} className="px-4 py-2 bg-slate-800 text-white rounded-lg text-xs">취소</button><button onClick={() => { confirmDialog.onConfirm(); setConfirmDialog({isOpen:false}); }} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs">진행</button></div>
+              </div>
+            </div>
+          )}
+
+          <header className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 sm:px-8">
+            <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-tr from-emerald-500 to-teal-400 p-2 rounded-xl"><span className="text-xl">📊</span></div>
+                <div>
+                  <div className="flex items-center gap-2"><span className="text-xs font-bold text-emerald-400 bg-emerald-950 px-1.5 py-0.5 rounded">V8.0 Complete</span></div>
+                  <h1 className="text-xl font-extrabold text-white">투자 포트폴리오</h1>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-full"><span className={`h-2 w-2 rounded-full ${driveSyncStatus==='connected'?'bg-emerald-400':driveSyncStatus==='syncing'?'bg-sky-400':'bg-slate-600'}`}></span><span className="text-[10px] text-slate-300">{driveSyncStatus==='connected'?'클라우드 연결됨':'연결 대기'}</span></div>
+                <button onClick={() => setShowBackupCenter(true)} className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold">⚙️ 구글 설정</button>
+              </div>
+            </div>
+          </header>
+
+          <section className="bg-slate-950 py-6 w-full">
+            <div className="max-w-7xl mx-auto px-4 sm:px-8">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                {/* 카드 1 */}
+                <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                  <p className="text-slate-400 text-xs font-medium">총 평가 자산</p>
+                  <h3 className="text-2xl font-black text-white mt-1">₩{portfolioStats.totalCurrent.toLocaleString()}</h3>
+                  <div className="text-xs text-slate-500 mt-1">원금: ₩{portfolioStats.totalInvested.toLocaleString()}</div>
+                </div>
+                
+                {/* 카드 2 */}
+                <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                  <p className="text-slate-400 text-xs font-medium">누적 평가 손익</p>
+                  <h3 className={`text-2xl font-black mt-1 ${portfolioStats.totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {portfolioStats.totalProfit >= 0 ? '+' : ''}₩{portfolioStats.totalProfit.toLocaleString()}
+                  </h3>
+                  <div className="text-xs text-slate-500 mt-1">수익률: {portfolioStats.profitRate.toFixed(2)}%</div>
+                </div>
+                
+                {/* 카드 3 */}
+                <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                  <p className="text-slate-400 text-xs font-medium">예상 연간 배당금</p>
+                  <h3 className="text-2xl font-black text-amber-400 mt-1">₩{portfolioStats.totalAnnualDividend.toLocaleString()}</h3>
+                  <div className="text-xs text-slate-500 mt-1">배당률: {portfolioStats.dividendYield.toFixed(2)}%</div>
+                </div>
+                
+                {/* 카드 4 */}
+                <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                  <p className="text-slate-400 text-xs font-medium">하루에 불어나는 이자 (배당)</p>
+                  <h3 className="text-2xl font-black text-teal-400 mt-1">₩{Math.round(portfolioStats.totalAnnualDividend / 365).toLocaleString()}</h3>
+                  <div className="flex gap-2 text-[10px] text-slate-500 mt-1">
+                      <div>월중(15일): <span className="text-teal-300">₩{Math.round(portfolioStats.midMonthDividend).toLocaleString()}</span></div>
+                  <div>월말(말일): <span className="text-teal-300">₩{Math.round(portfolioStats.endMonthDividend).toLocaleString()}</span></div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </section>
+
+          <nav className="max-w-7xl mx-auto px-4 sm:px-8">
+  <div className="flex gap-2 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 overflow-x-auto">
+            <button onClick={()=>setActiveTab('dashboard')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='dashboard'?'bg-emerald-600 text-white':'text-slate-400'}`}>📊 종합 대시보드</button>
+            <button onClick={()=>setActiveTab('history')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='history'?'bg-emerald-600 text-white':'text-slate-400'}`}>🗓️ 월별 기록 & 수익률</button>
+            <button onClick={()=>setActiveTab('assets')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='assets'?'bg-emerald-600 text-white':'text-slate-400'}`}>💸 자산 편집</button>
+            <button onClick={()=>setActiveTab('rebalance')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='rebalance'?'bg-emerald-600 text-white':'text-slate-400'}`}>🔄 자산배분 & 리밸런싱</button>
+            <button onClick={()=>setActiveTab('dividends')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='dividends'?'bg-emerald-600 text-white':'text-slate-400'}`}>📅 월배당 달력</button>
+            <button onClick={()=>setActiveTab('cheatsheet')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='cheatsheet'?'bg-emerald-600 text-white':'text-slate-400'}`}>📚 계산기</button>
+          </div></nav>
+
+          <main className="max-w-7xl mx-auto px-4 sm:px-8 mt-6">
+            
+            {activeTab === 'dashboard' && (
+  <div className="space-y-6">
+  
+   {activeTab === 'dashboard' && (
+              <div className="space-y-6">
+              
+                {/* 2. 자산 배분 및 현금흐름 (좌/우 완벽 밸런스 매칭 버전) */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                  
+                  {/* [왼쪽] 자산군 비중 원형 차트 카드 (7/12 너비 차지) */}
+                  <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 flex flex-col justify-between shadow-lg lg:col-span-7 min-h-[420px]">
+                    <div>
+                      <h4 className="text-lg font-bold text-white mb-1">자산 분류별 실제 포트폴리오</h4>
+                      <p className="text-slate-400 text-xs mb-6 font-medium">현재 보유하고 있는 5대 자산군의 정확한 비중 분포입니다.</p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-around gap-8 py-2 grow">
+                      {/* SVG 도넛 차트 */}
+                      <div className="relative w-52 h-52 shrink-0">
+                        {(portfolioStats?.totalCurrent || 0) === 0 ? (
+                          <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-xs font-bold bg-slate-950/40 rounded-full border border-slate-850">
+                            등록된 자산 없음
+                          </div>
+                        ) : (
+                          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 42 42">
+                            <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#1e293b" strokeWidth="4" />
+                            {(() => {
+                              let accumulatedPercentage = 0;
+                              return CATEGORIES.map((cat) => {
+                                const pct = categoryStats?.[cat]?.percent || 0;
+                                if (pct === 0) return null;
+                                const strokeDashArray = `${pct} ${100 - pct}`;
+                                const strokeDashOffset = 100 - accumulatedPercentage;
+                                accumulatedPercentage += pct;
+                                return (
+                                  <circle 
+                                    key={cat} 
+                                    cx="21" 
+                    cy="21" 
+                                    r="15.915" 
+                                    fill="transparent" 
+                                    stroke={CATEGORY_COLORS?.[cat] || '#ffffff'} 
+                                    strokeWidth="4.2" 
+                                    strokeDasharray={strokeDashArray} 
+                                    strokeDashoffset={strokeDashOffset} 
+                                    className="transition-all duration-500 ease-in-out"
+                                  />
+                                );
+                              });
+                            })()}
+                            <g className="transform rotate-90 origin-center">
+                              <text x="21" y="19" className="text-[3.5px] font-bold fill-slate-400" textAnchor="middle">총 포트폴리오</text>
+                              <text x="21" y="24.5" className="text-[5px] font-black fill-white" textAnchor="middle">100%</text>
+                            </g>
+                          </svg>
+                        )}
+                      </div>
+
+                      {/* 우측 범례 리스트 */}
+                      <div className="space-y-3 w-full sm:w-auto grow max-w-xs">
+                        {CATEGORIES.map(cat => {
+                          const stat = categoryStats?.[cat] || { value: 0, percent: 0 };
+                          return (
+                            <div key={cat} className="flex items-center justify-between gap-4 border-b border-slate-800/40 pb-2 last:border-none last:pb-0">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: CATEGORY_COLORS?.[cat] || '#ffffff' }} />
+                                <span className="text-xs font-bold text-slate-300">{cat}</span>
+                              </div>
+                              <div className="text-right whitespace-nowrap">
+                                <span className="text-[11px] font-medium text-slate-500 mr-2">
+                                  ₩{Math.round(stat.value / 10000).toLocaleString()}만
+                                </span>
+                                <span className="text-xs font-black text-white">
+                                  {(stat.percent || 0).toFixed(1)}%
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* [오른쪽] 컨테이너 영역 (5/12 너비 차지, 상하 구조) */}
+                  <div className="lg:col-span-5 flex flex-col gap-4 justify-between">
+
+                    {/* [오른쪽 위] 핵심 지표 2종 카드 */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-md">
+                        <span className="text-[10px] font-bold text-slate-400 block">월평균 배당</span>
+                        <h2 className="text-xl font-black text-amber-400 mt-1">
+                          ₩{Math.round((portfolioStats?.totalAnnualDividend || 0) / 12).toLocaleString()}
+                        </h2>
+                      </div>
+                      <div className="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-md">
+                        <span className="text-[10px] font-bold text-slate-400 block">리밸런싱 상태</span>
+                        <h2 className="text-xl font-black text-sky-400 mt-1">
+                          {(targetWeightsSum || 0) === 100 ? '정상' : '설정 필요'}
+                        </h2>
+                      </div>
+                    </div>
+
+                    {/* [오른쪽 아래] 월별 입체 현금흐름 차트 */}
+                    <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 flex flex-col justify-between shadow-lg grow">
+                      <div>
+                        <h4 className="font-bold text-white mb-1">월별 입체 현금흐름 (예측)</h4>
+                        <p className="text-slate-400 text-xs mb-4 font-medium">월중과 월말 배당 비중을 고려한 연간 흐름입니다.</p>
+                      </div>
+
+                      {/* 배당 게이지 바 */}
+                      <div className="space-y-2.5 py-1">
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+                          <span>월중 배당(추천 15일 분배형)</span>
+                          <span className="text-teal-400 font-extrabold">₩{(portfolioStats?.midMonthDividend || 0).toLocaleString()}</span>
+                        </div>
+                        
+                        {(() => {
+                          const mid = portfolioStats?.midMonthDividend || 0;
+                          const end = portfolioStats?.endMonthDividend || 0;
+                          const total = mid + end || 1;
+                          const midPct = (mid / total) * 100;
+                          const endPct = (end / total) * 100;
+                          return (
+                            <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden flex border border-slate-800">
+                              <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${midPct}%` }} />
+                              <div className="bg-teal-500 h-full transition-all duration-500" style={{ width: `${endPct}%` }} />
+                            </div>
+                          );
+                        })()}
+
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+  <span>월말 배당(안정 대표지수형)</span>
+  <span className="text-teal-400 font-extrabold">₩{Math.round(portfolioStats?.endMonthDividend || 0).toLocaleString()}</span>
+</div>
+                      </div>
+
+                      {/* 12달 막대 그래프 */}
+                      <div className="grid grid-cols-12 gap-1.5 pt-4 border-t border-slate-800/60 items-end h-24">
+                        {Array.from({ length: 12 }, (_, i) => {
+                          const month = i + 1;
+                          let totalMonthAmount = 0;
+                          
+                          (assets || []).forEach(asset => {
+                            const qty = Number(asset?.quantity || 0);
+                            const divAmt = Number(asset?.dividendAmount || 0);
+                            if (asset?.dividendMonth === '매월') totalMonthAmount += divAmt * qty;
+                            else if (asset?.dividendMonth === '분기' && [1, 4, 7, 10].includes(month)) totalMonthAmount += divAmt * qty;
+                            else if (asset?.dividendMonth === '반기' && [6, 12].includes(month)) totalMonthAmount += divAmt * qty;
+                            else if (asset?.dividendMonth === '연간' && month === 12) totalMonthAmount += divAmt * qty;
+                          });
+
+                          const maxVal = Math.max(...Array.from({ length: 12 }, (_, m) => {
+                            let amt = 0;
+                            (assets || []).forEach(a => {
+                              const q = Number(a?.quantity || 0);
+                              const d = Number(a?.dividendAmount || 0);
+                              if (a?.dividendMonth === '매월') amt += d * q;
+                              else if (a?.dividendMonth === '분기' && [1, 4, 7, 10].includes(m + 1)) amt += d * q;
+                              else if (a?.dividendMonth === '반기' && [6, 12].includes(m + 1)) amt += d * q;
+                              else if (a?.dividendMonth === '연간' && (m + 1) === 12) amt += d * q;
+                            });
+                            return amt;
+                          })) || 1;
+
+                          const heightPct = Math.max((totalMonthAmount / maxVal) * 100, 6);
+
+                          return (
+                            <div key={month} className="flex flex-col items-center group relative cursor-pointer">
+                              <div className="absolute -top-12 left-1/2 -translate-x-1/2 scale-0 group-hover:scale-100 transition-all bg-slate-950 text-white text-[10px] p-1.5 rounded-lg border border-slate-700 shadow-xl z-20 whitespace-nowrap">
+                                {month}월: ₩{Math.round(totalMonthAmount).toLocaleString()}
+                              </div>
+                              <div className="w-full bg-slate-950 rounded-t-sm h-16 flex items-end">
+                                <div 
+                                  style={{ height: `${heightPct}%` }} 
+                                  className={`w-full rounded-t-sm transition-all duration-500 ${totalMonthAmount > 0 ? 'bg-gradient-to-t from-emerald-600 to-emerald-400' : 'bg-slate-800'}`} 
+                                />
+                              </div>
+                              <span className="text-[9px] text-slate-500 font-bold mt-1">{month}월</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+    {/* 🔥 [추가됨] 3. 총자산 역사적 우상향 추이 그래프 */}
+                <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-lg">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                    <div>
+                      <h4 className="text-lg font-bold text-white">📈 총자산 월별 성장 추이</h4>
+                      <p className="text-slate-400 text-xs mt-0.5 font-medium">자동 저장된 월말 스냅샷 데이터베이스를 기반으로 그려진 연동 차트입니다.</p>
+                    </div>
+
+                    <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850">
+                      <button onClick={() => { setTrendPeriod(6); setHoveredPoint(null); }} className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${trendPeriod === 6 ? 'bg-emerald-600 text-white shadow' : 'text-slate-500 hover:text-slate-200'}`}>6개월</button>
+                      <button onClick={() => { setTrendPeriod(12); setHoveredPoint(null); }} className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${trendPeriod === 12 ? 'bg-emerald-600 text-white shadow' : 'text-slate-500 hover:text-slate-200'}`}>1년</button>
+                      <button onClick={() => { setTrendPeriod(24); setHoveredPoint(null); }} className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${trendPeriod === 24 ? 'bg-emerald-600 text-white shadow' : 'text-slate-500 hover:text-slate-200'}`}>전체 기록</button>
+                    </div>
+                  </div>
+
+                  <div className="relative w-full bg-slate-950 p-4 rounded-2xl border border-slate-850 overflow-hidden">
+                    {hoveredPoint && (
+                      <div className="absolute z-20 pointer-events-none bg-slate-900 border border-emerald-500/50 p-3 rounded-xl shadow-2xl text-xs text-left space-y-0.5" style={{ left: `${Math.min(hoveredPoint.x * (100 / 600) + 1, 75)}%`, top: '15px' }}>
+                        <div className="text-[10px] font-bold text-slate-400">{hoveredPoint.month} 종합 결산</div>
+                        <div className="text-emerald-400 font-extrabold">총자산: ₩{hoveredPoint.value.toLocaleString()}</div>
+                        <div className="text-slate-300">원금: ₩{hoveredPoint.invested.toLocaleString()}</div>
+                        <div className={`text-[10px] font-bold ${hoveredPoint.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          누적손익: ₩{hoveredPoint.profit.toLocaleString()} ({((hoveredPoint.profit / (hoveredPoint.invested || 1)) * 100).toFixed(1)}%)
+                        </div>
+                      </div>
+                    )}
+
+                    <svg className="w-full h-auto" viewBox="0 0 600 180" onMouseLeave={() => setHoveredPoint(null)}>
+                      <defs>
+                        <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
+                          <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                        </linearGradient>
+                      </defs>
+
+                      {chartMetrics.yGridValues.map((g, idx) => (
+                        <g key={idx} className="opacity-40">
+                          <line x1={chartMetrics.paddingLeft} y1={g.y} x2={600 - chartMetrics.paddingRight} y2={g.y} stroke="#334155" strokeWidth="1" strokeDasharray="3 3" />
+                          <text x={chartMetrics.paddingLeft - 8} y={g.y + 4} className="text-[9px] font-semibold fill-slate-400" textAnchor="end">
+                            {g.val >= 100000000 ? `${(g.val / 100000000).toFixed(1)}억` : `${Math.round(g.val / 10000).toLocaleString()}만`}
+                          </text>
+                        </g>
+                      ))}
+
+                      {chartMetrics.areaPath && <path d={chartMetrics.areaPath} fill="url(#trendGradient)" />}
+                      {chartMetrics.linePath && <path d={chartMetrics.linePath} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+
+                      {hoveredPoint && <line x1={hoveredPoint.x} y1={chartMetrics.paddingTop} x2={hoveredPoint.x} y2={180 - chartMetrics.paddingBottom} stroke="#10b981" strokeWidth="1.5" strokeDasharray="2 2" className="opacity-75" />}
+
+                      {chartMetrics.points.map((p, idx) => {
+                        const isHovered = hoveredPoint && hoveredPoint.month === p.month;
+                        return (
+                          <g key={idx}>
+                            {isHovered && <circle cx={p.x} cy={p.y} r="7" fill="#10b981" className="opacity-30" />}
+                            <circle cx={p.x} cy={p.y} r={isHovered ? "4" : "3"} fill={isHovered ? "#34d399" : "#10b981"} stroke="#020617" strokeWidth="1" />
+                          </g>
+                        );
+                      })}
+
+                      {chartMetrics.points.map((p, idx) => {
+                        const labelInterval = trendPeriod === 24 ? 3 : trendPeriod === 12 ? 2 : 1;
+                        if (idx % labelInterval !== 0 && idx !== chartMetrics.points.length - 1) return null;
+                        return <text key={idx} x={p.x} y={180 - 8} className="text-[9px] font-bold fill-slate-500" textAnchor="middle">{p.month}</text>;
+                      })}
+
+                      {chartMetrics.points.map((p, idx) => {
+                        const colWidth = chartMetrics.plotWidth / (Math.max(trendData.length - 1, 1));
+                        const rectX = p.x - colWidth / 2;
+                        return <rect key={idx} x={rectX} y={chartMetrics.paddingTop} width={colWidth} height={chartMetrics.plotHeight} fill="transparent" className="cursor-crosshair" onMouseEnter={() => setHoveredPoint(p)} onTouchStart={() => setHoveredPoint(p)} />;
+                      })}
+                    </svg>
+                  </div>
+                </div>
+
+    {/* 4. 절세 계좌별 상세 종목 현황 */}
+    <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-lg">
+      <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
+        <h4 className="text-lg font-bold text-white">🛡️ 절세 계좌별 상세 종목 현황</h4>
+        <div className="flex gap-2 overflow-x-auto">
+          {ACCOUNTS.map(acc => (
+            <button key={acc} onClick={() => setSelectedAccountDetailTab(acc)} 
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold ${selectedAccountDetailTab === acc ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+              {acc}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs text-slate-300">
+          <thead className="text-slate-400 border-b border-slate-800">
+            <tr><th className="py-3">종목명</th><th className="py-3 text-right">수량</th><th className="py-3 text-right">현재가</th><th className="py-3 text-right">평가금액</th></tr>
+          </thead>
+          <tbody>
+            {assets.filter(a => a.account === selectedAccountDetailTab).map(asset => (
+              <tr key={asset.id} className="border-b border-slate-800/50">
+                <td className="py-3">{asset.name}</td>
+                <td className="py-3 text-right">{Number(asset.quantity).toLocaleString()}주</td>
+                <td className="py-3 text-right">₩{Number(asset.currentPrice).toLocaleString()}</td>
+                <td className="py-3 text-right font-bold text-white">₩{(Number(asset.quantity) * Number(asset.currentPrice)).toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+)}
+
+            {/* ==========================================
+                TAB 2: 월별 기록 & 연간 수익률 관리 (자동 로킹)
+                ========================================== */}
+            {activeTab === 'history' && (
+              <div className="space-y-6">
+                
+                {/* 실시간 갱신 인디케이터 배너 */}
+                <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+                  <div className="absolute right-0 top-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full"></div>
+                  
+                  <div className="space-y-2 relative z-10 w-full">
+                    <h4 className="text-lg font-bold text-white flex items-center gap-2">
+                      <span className="relative flex h-3 w-3 mr-1">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                      </span>
+                      매월 말일 기준 자동 스냅샷 저장 활성화
+                    </h4>
+                    <p className="text-xs text-slate-400 leading-relaxed max-w-4xl">
+                      더 이상 가계부 결산일에 맞춰 수동으로 저장할 필요가 없습니다. <strong className="text-emerald-400 font-bold">이번 달({new Date().getFullYear()}년 {String(new Date().getMonth() + 1).padStart(2, '0')}월)</strong>의 자산 변동 내역은 앱을 조작할 때마다 백그라운드에서 실시간으로 갱신되며, 구글 스프레드시트와 연결 시 시트 파일로 즉시 안전하게 보관됩니다.
+                    </p>
+                  </div>
+                </div>
+
+               {/* 연도별 결산 카드 그리드 */}
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  {Object.entries(
+    snapshots.reduce((acc, s) => {
+      // 버그 수정: 영문 요일(Wed, Thu) 대신 날짜 문자열에서 숫자 4자리(연도)를 정확히 추출합니다.
+      const yearMatch = s.date.match(/\d{4}/);
+      const year = yearMatch ? yearMatch[0] : new Date().getFullYear().toString();
+      
+      if (!acc[year]) acc[year] = [];
+      acc[year].push(s);
+      return acc;
+    }, {})
+  )
+    .sort((a, b) => b[0] - a[0]) // 최신 연도가 먼저 오도록 정렬
+    .map(([year, yearSnapshots]) => {
+      // 해당 연도의 마지막 스냅샷(최신 달)을 기준으로 결산 데이터 계산
+      const latestSnap = yearSnapshots[0]; 
+      const yearTotal = latestSnap ? latestSnap.total : 0;
+      const yearInvested = latestSnap ? latestSnap.invested : 0;
+      const yearProfit = yearTotal - yearInvested;
+      const yearProfitRate = yearInvested > 0 ? (yearProfit / yearInvested) * 100 : 0;
+
+      return (
+        <div key={year} className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4 shadow-xl relative overflow-hidden group hover:border-emerald-500/30 transition-all">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-all"></div>
+          
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h4 className="text-white font-bold text-base flex items-center gap-2">
+              <span className="text-emerald-400">📊</span> {year}년 종합 결산
+            </h4>
+            <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-medium">
+              기록 {yearSnapshots.length}개
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-400">최종 자산 총액</span>
+              <span className="text-white font-semibold">₩{yearTotal.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-400">총 투자 원금</span>
+              <span className="text-slate-300">₩{yearInvested.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs border-t border-slate-800/60 pt-2.5">
+              <span className="text-slate-400">누적 평가 손익</span>
+              <span className={`font-bold ${yearProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {yearProfit >= 0 ? '+' : ''}₩{yearProfit.toLocaleString()}
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-400">연간 최종 수익률</span>
+              <span className={`px-2 py-0.5 rounded font-bold text-[11px] ${yearProfitRate >= 0 ? 'bg-emerald-950/40 text-emerald-400' : 'bg-rose-950/40 text-rose-400'}`}>
+                {yearProfitRate >= 0 ? '+' : ''}{yearProfitRate.toFixed(2)}%
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    })}
+</div>
+
+                {/* 히스토리 테이블 */}
+                <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden">
+                  <div className="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+                    <span className="text-xs font-bold text-white">📋 역사적 월별 스냅샷 목록 (상세 로그)</span>
+                    <span className="text-[10px] text-slate-500">과거 기록을 관리합니다. 이번 달 데이터는 실시간으로 변경됩니다.</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-slate-950 text-slate-450 border-b border-slate-800 font-semibold">
+                        <tr>
+                          <th className="py-3 px-4">기준 연월</th><th className="py-3 px-4 text-right">종합 평가액</th><th className="py-3 px-4 text-right">누적 투자원금</th>
+                          <th className="py-3 px-4 text-right">평가 손익</th><th className="py-3 px-4 text-center">수익률(%)</th><th className="py-3 px-4">자동 결산 메모</th><th className="py-3 px-4 text-center">제어</th>
+                        </tr>
+                      </thead>
+                     <tbody className="divide-y divide-slate-855/50">
+  {[...snapshots]
+    .map(s => {
+      // 1. [사전 처리] 어떤 형식의 날짜가 들어와도 무조건 YYYY-MM 형태로 변환하여 새 변수에 저장
+      if (!s.date) return { ...s, formattedDate: "" };
+      
+      const dateStr = String(s.date);
+      let formattedDate = s.date;
+
+      // 구글 시트 백업 시 넘어오는 영문 포맷(Wed Apr 01...)이나 GMT 형태 방어
+      if (dateStr.includes("GMT") || (isNaN(Number(s.date)) && Date.parse(dateStr))) {
+        const d = new Date(dateStr);
+        formattedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      }
+      
+      return { ...s, formattedDate };
+    })
+    // 2. [정렬] 표준화된 YYYY-MM 문자열(formattedDate)을 기준으로 내림차순(최신순) 정렬
+    .sort((a, b) => (b.formattedDate || "").localeCompare(a.formattedDate || ""))
+    .map(s => {
+      const snapProfitRate = s.invested > 0 ? (s.profit / s.invested) * 100 : 0;
+      const today = new Date();
+      const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+      
+      // 3. 정렬 전 변환해 둔 formattedDate 덕분에 당월 체크도 정확하게 작동합니다.
+      const isCurrentMonth = s.formattedDate === currentMonthKey;
+
+      return (
+        <tr key={s.id} className={`${isCurrentMonth ? 'bg-emerald-950/20' : 'hover:bg-slate-800/40'} transition-colors`}>
+          <td className="py-3 px-4 font-bold text-white">
+            {s.formattedDate}
+            {isCurrentMonth && <span className="ml-2 text-[8px] bg-emerald-600/30 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/40">실시간 갱신 중 (저장 가능)</span>}
+          </td>
+          <td className="py-3 px-4 text-right font-bold">₩{s.total.toLocaleString()}</td>
+          <td className="py-3 px-4 text-right text-slate-400">₩{s.invested.toLocaleString()}</td>
+          <td className={`py-3 px-4 text-right font-semibold ${s.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>₩{s.profit.toLocaleString()}</td>
+          <td className="py-3 px-4 text-center">
+            <span className={`px-2 py-0.5 rounded font-bold ${snapProfitRate >= 0 ? 'bg-emerald-950/60 text-emerald-400' : 'bg-rose-950/60 text-rose-400'}`}>
+              {snapProfitRate >= 0 ? '+' : ''}{snapProfitRate.toFixed(2)}%
+            </span>
+          </td>
+          <td className="py-3 px-4 text-slate-400 italic text-[11px] truncate max-w-xs">{s.memo}</td>
+         <td className="py-3 px-4 text-center">
+  {isCurrentMonth ? (
+    <button 
+      onClick={() => {
+        // 이미 저장된 스냅샷인지 한 번 더 확인
+        if (snapshots.some(s => s.formattedDate === currentMonthKey && s.memo.includes('수동 결산'))) {
+          triggerNotification('이번 달 스냅샷은 이미 저장되었습니다.', 'error');
+        } else if (confirm("이번 달 자산 현황을 최종 결산 스냅샷으로 저장하시겠습니까?")) {
+          handleCreateManualSnapshot(); // 위에서 만든 수동 저장 함수 호출
+        }
+      }}
+      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-3 py-1 rounded-lg shadow transition-all"
+    >
+      💾 저장
+    </button>
+  ) : (
+    <button onClick={() => handleDeleteSnapshot(s.id, s.date)} className="text-slate-500 hover:text-rose-400 font-bold text-[11px] transition-colors">✕ 삭제</button>
+  )}
+</td>
+        </tr>
+      );
+    })}
+</tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+   {/* ==========================================
+                TAB 3: 자산 내역 편집
+                ========================================== */}
+
+
+            {activeTab === 'assets' && (
+              <div className="space-y-6">
+                <div className="flex justify-between gap-4 bg-slate-900 p-4 rounded-2xl border border-slate-800">
+                  <div className="flex gap-2">
+                    <input type="text" placeholder="종목 검색" value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-xl px-3 text-xs text-white" />
+                    <select value={selectedAccountFilter} onChange={(e)=>setSelectedAccountFilter(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-xl px-3 text-xs text-white"><option value="전체">전체 계좌</option>{ACCOUNTS.map(a=><option key={a} value={a}>{a}</option>)}</select>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={handleLoadFromSheet} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold">📥 시트 불러오기</button>
+                    <button onClick={handleSyncPrices} className="bg-sky-600 text-white px-4 py-2 rounded-xl text-xs font-bold">🔄 시세 갱신</button>
+                    <button onClick={handleManualSave} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold">💾 시트 저장</button>
+                    <button onClick={()=>{setEditingAsset(null);setShowAddModal(true);}} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold">➕ 신규 추가</button>
+                  </div>
+                </div>
+                <div className="bg-slate-900 rounded-2xl overflow-x-auto border border-slate-800">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-slate-950 text-slate-400"><tr><th className="py-3 px-4">계좌</th><th className="py-3 px-4">종목</th><th className="py-3 px-4">분류</th><th className="py-3 px-4 text-right">수량</th><th className="py-3 px-4 text-right">매수단가</th><th className="py-3 px-4 text-right">현재가</th><th className="py-3 px-4 text-right">평가금액</th><th className="py-3 px-4 text-right">손익</th><th className="py-3 px-4 text-center">배당 정보</th><th className="py-3 px-4 text-center">수정/삭제</th></tr></thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {filteredAssets.map(asset => {
+                        return <AssetRow key={asset.id} asset={asset} onSave={(data) => {
+                          const nextAssets = assets.map(a => a.id === data.id ? data : a);
+                          setAssets(nextAssets); saveToLocal(nextAssets, targetWeights, snapshots); syncSingleRow(data, false);
+                        }} onDelete={handleDeleteAsset} onEdit={(a)=>{setEditingAsset(a);setShowAddModal(true);}} />
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+          {activeTab === 'rebalance' && (
+  <div className="space-y-6">
+    {/* 다른 탭처럼 헤더 영역 추가 */}
+    <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800">
+      <h3 className="text-xl font-extrabold text-white">🔄 자산배분 전략 센터</h3>
+      <p className="text-xs text-slate-400 mt-1">포트폴리오의 목표 비중을 설정하고 리밸런싱을 수행합니다.</p>
+    </div>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      {/* 1. 자산군 목표 비중 세팅 (v7.0 스타일 슬라이더) */}
+      <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 lg:col-span-1">
+        <h4 className="text-lg font-bold text-white mb-1">자산 타겟 비중</h4>
+        <p className="text-slate-400 text-xs mb-4">목표 합계가 100%가 되도록 조정하세요.</p>
+        <div className="space-y-4">
+          {CATEGORIES.map(cat => (
+            <div key={cat} className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-300 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[cat] }} />{cat}
+                </span>
+                <span className="font-black text-emerald-400">{targetWeights[cat]}%</span>
+              </div>
+              <input 
+                type="range" min="0" max="100" step="5" 
+                value={targetWeights[cat] || 0} 
+                onChange={(e) => { 
+                  const updated = { ...targetWeights, [cat]: Number(e.target.value) };
+                  setTargetWeights(updated);
+                  // v8.0의 저장 로직 호출
+                  triggerCloudSyncAll(assets, updated, snapshots);
+                }} 
+                className="w-full accent-emerald-500 bg-slate-950 h-2 rounded-lg cursor-pointer" 
+              />
+            </div>
+          ))}
+          <div className={`p-3 rounded-xl text-center font-bold text-xs mt-4 ${targetWeightsSum === 100 ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800' : 'bg-rose-950/60 text-rose-300 border-rose-800'}`}>
+            {targetWeightsSum === 100 ? '✨ 비중 합계 100% 완성!' : `⚠️ 현재 합계 ${targetWeightsSum}% (100% 필수)`}
+          </div>
+        </div>
+      </div>
+
+         {/* 스마트 리밸런싱 예치금 계산기 */}
+                  <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 lg:col-span-2 flex flex-col justify-between shadow-md">
+                    <div>
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
+                        <h4 className="text-lg font-bold text-white">비중 차이 진단 및 리밸런싱 액션 플랜</h4>
+                        <span className="text-xs text-emerald-400 font-semibold bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800/40">현재 자산규모: ₩{portfolioStats.totalCurrent.toLocaleString()}</span>
+                      </div>
+                      <p className="text-slate-400 text-xs mb-4">목표 비중과 실제 포트폴리오를 실시간 대조하여 모자란 자산을 맞춤형으로 안내합니다.</p>
+
+                      <div className="bg-slate-950 p-4 rounded-2xl border border-slate-850 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div>
+                          <span className="text-xs font-bold text-emerald-400">💵 월 정기 신규 입금 자본금 대치 기능</span>
+                          <p className="text-[11px] text-slate-500 mt-0.5">새로운 여유 자금을 적립하고 싶을 때 금액을 기입해 보세요. 기보유 종목을 매도하지 않고 최적의 비중 분할 가이드를 도출합니다.</p>
+                        </div>
+                        <div className="w-full sm:w-auto relative">
+                          <input type="number" placeholder="신규 입금액 (원)" value={newCapital || ''} onChange={(e) => setNewCapital(Number(e.target.value))} className="w-full sm:w-48 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-right text-white focus:outline-none focus:border-emerald-500 font-bold" />
+                          <span className="absolute left-3 top-2 text-[10px] text-slate-400">₩</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        {rebalancingCalculations.map(row => {
+                          const isOver = row.difference < 0;
+                          return (
+                            <div key={row.category} className="bg-slate-950 p-3.5 rounded-xl border border-slate-800/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                              <div className="space-y-1 w-full sm:w-1/3">
+                                <span className="text-xs font-bold text-slate-200 block truncate">{row.category}</span>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium"><span>목표: {row.targetPct}%</span><span>•</span><span>현재: {row.currentPct.toFixed(1)}%</span></div>
+                              </div>
+                              <div className="w-full sm:w-1/3 bg-slate-900 h-2.5 rounded-full overflow-hidden flex border border-slate-800/80">
+                                <div className="bg-emerald-500/80" style={{ width: `${Math.min(row.currentPct, 100)}%` }} />
+                              </div>
+                              <div className="text-right w-full sm:w-1/3">
+                                {row.difference === 0 ? <span className="text-xs text-slate-400 font-bold">비중 일치</span> : (
+                                  <div>
+                                    <span className={`text-xs font-extrabold ${isOver ? 'text-rose-400 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-900/40' : 'text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-900/40'}`}>{isOver ? '일부 매도' : '추가 매수'} ₩{Math.round(Math.abs(row.difference)).toLocaleString()}</span>
+                                    <span className="text-[10px] text-slate-500 block mt-1 font-semibold">목표이상향: ₩{Math.round(row.idealVal).toLocaleString()}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+    </div>
+  </div>
+)}
+            
+         {activeTab === 'dividends' && (
+  <div className="space-y-6">
+    {/* 상단 요약 카드 */}
+    <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6 shadow-md">
+      <div className="space-y-1">
+        <h4 className="text-lg font-bold text-white">월배당 ETF 트래커 현금흐름 연동</h4>
+        <p className="text-xs text-slate-400 leading-relaxed">매월 15일에 입금되는 월중 배당과 말일에 입금되는 월말 배당의 두 가지 바퀴가 조화를 이룰 때, 예수금 회전율이 극대화되며 노후 가계부 현금흐름이 가장 안정적인 상태가 됩니다.</p>
+      </div>
+      <div className="bg-slate-950 px-6 py-4 rounded-xl border border-slate-800 text-center shrink-0 w-full md:w-auto">
+        <span className="text-[10px] text-slate-400 font-bold block">월평균 예상 배당 수익</span>
+        <span className="text-2xl font-black text-amber-400 block mt-1">₩{Math.round(portfolioStats.totalAnnualDividend / 12).toLocaleString()}</span>
+      </div>
+    </div>
+
+    {/* 분배 캘린더 리스트 */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* 1. 월중 배당 */}
+      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-md">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+          <span className="text-sm font-bold text-white flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-teal-500 animate-pulse" />📅 월중(15일) 배당형 자산 목록</span>
+          <span className="text-xs text-teal-300 font-extrabold bg-teal-950 border border-teal-800 px-2 py-0.5 rounded">소계 ₩{portfolioStats.midMonthDividend.toLocaleString()}</span>
+        </div>
+        <div className="space-y-3">
+  {assets.filter(a => a.dividendType === 'mid' && Number(a.dividendAmount) > 0).map(asset => {
+    // 분기 배당일 경우 3으로 나누어 평균값 계산
+    const isQuarterly = asset.dividendMonth === '분기';
+    const monthlyAmount = isQuarterly ? Number(asset.dividendAmount) / 3 : Number(asset.dividendAmount);
+    const expectedMonthly = monthlyAmount * Number(asset.quantity);
+
+    return (
+      <div key={asset.id} className="bg-slate-950 p-3.5 rounded-xl border border-slate-800/60 flex items-center justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black text-slate-100">{asset.name}</span>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded border ${isQuarterly ? 'bg-amber-950 border-amber-800 text-amber-300' : 'bg-sky-950 border-sky-800 text-sky-300'}`}>
+              {asset.dividendMonth}
+            </span>
+          </div>
+          <span className="text-[10px] text-slate-500 block">{asset.account} • {Number(asset.quantity).toLocaleString()}주</span>
+        </div>
+        <div className="text-right">
+          <span className="text-xs font-bold text-teal-400 block">
+            ₩{Math.round(expectedMonthly).toLocaleString()}
+            <span className="text-[10px] text-slate-500">{isQuarterly ? '/월(평균)' : '/월'}</span>
+          </span>
+          <span className="text-[10px] text-slate-500">주당 ₩{Number(asset.dividendAmount).toLocaleString()}</span>
+        </div>
+      </div>
+    );
+  })}
+</div>
+      </div>
+
+      {/* 2. 월말 배당 */}
+      <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-md">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+          <span className="text-sm font-bold text-white flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />📅 월말(말일) 배당형 자산 목록</span>
+          <span className="text-xs text-emerald-300 font-extrabold bg-emerald-950 border border-emerald-800 px-2 py-0.5 rounded">{/* ₩ 표시 앞에 Math.round()를 감싸 소수점을 반올림 처리합니다 */}
+  소계 ₩{Math.round(portfolioStats.endMonthDividend).toLocaleString()}
+</span>
+        </div>
+        <div className="space-y-3">
+  {assets.filter(a => a.dividendType === 'end' && Number(a.dividendAmount) > 0).map(asset => {
+    // 분기 배당일 경우 3으로 나누어 평균값 계산
+    const isQuarterly = asset.dividendMonth === '분기';
+    const monthlyAmount = isQuarterly ? Number(asset.dividendAmount) / 3 : Number(asset.dividendAmount);
+    const expectedMonthly = monthlyAmount * Number(asset.quantity);
+
+    return (
+      <div key={asset.id} className="bg-slate-950 p-3.5 rounded-xl border border-slate-800/60 flex items-center justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black text-slate-100">{asset.name}</span>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded border ${isQuarterly ? 'bg-amber-950 border-amber-800 text-amber-300' : 'bg-sky-950 border-sky-800 text-sky-300'}`}>
+              {asset.dividendMonth}
+            </span>
+          </div>
+          <span className="text-[10px] text-slate-500 block">{asset.account} • {Number(asset.quantity).toLocaleString()}주</span>
+        </div>
+        <div className="text-right">
+          <span className="text-xs font-bold text-emerald-400 block">
+            ₩{Math.round(expectedMonthly).toLocaleString()}
+            <span className="text-[10px] text-slate-500">{isQuarterly ? '/월(평균)' : '/월'}</span>
+          </span>
+          <span className="text-[10px] text-slate-500">주당 ₩{Number(asset.dividendAmount).toLocaleString()}</span>
+        </div>
+      </div>
+    );
+  })}
+</div>
+      </div>
+    </div>
+  </div>
+)}
+
+            {activeTab === 'cheatsheet' && (
+  <div className="space-y-6">
+  {/* 1. 은퇴 자산 시뮬레이터 */}
+<div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-md">
+  <h4 className="text-lg font-bold text-white mb-1">⏰ 노후자금 시스템 계산기</h4>
+  {/* 💡 4% 룰 -> {withdrawalRate}% 룰로 텍스트 변경 */}
+  <p className="text-slate-400 text-xs mb-6">수익률 {calcRate}% / 인출률 {withdrawalRate}% 시뮬레이터</p>
+
+  <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+    <div className="bg-slate-950 p-4 rounded-2xl border border-slate-850 space-y-4">
+      <span className="text-xs font-bold text-emerald-400 block">계산기 입력 설정</span>
+      <div className="space-y-1"><label className="text-[10px] text-slate-400 block">초기 자본금 (원)</label><input type="number" value={calcInit} onChange={(e) => setCalcInit(Number(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-right font-bold text-white focus:outline-none" /></div>
+      <div className="space-y-1"><label className="text-[10px] text-slate-400 block">매월 적립액 (원)</label><input type="number" value={calcMonthly} onChange={(e) => setCalcMonthly(Number(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-right font-bold text-white focus:outline-none" /></div>
+      <div className="space-y-1"><label className="text-[10px] text-slate-400 block">장기 투자 연수 (년)</label><input type="number" value={calcYears} onChange={(e) => setCalcYears(Number(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-right font-bold text-white focus:outline-none" /></div>
+      <div className="space-y-1"><label className="text-[10px] text-slate-400 block">기대 연수익률 (%)</label><input type="number" value={calcRate} onChange={(e) => setCalcRate(Number(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-right font-bold text-white focus:outline-none" /></div>
+      
+      {/* 🛠️여기에 인출률(%)을 조절할 수 있는 입력창을 새로 추가했습니다 */}
+      <div className="space-y-1">
+        <label className="text-[10px] text-amber-400 block font-bold">목표 인출률 (%)</label>
+        <input 
+          type="number" 
+          value={withdrawalRate} 
+          onChange={(e) => setWithdrawalRate(Number(e.target.value) || 0)} 
+          className="w-full bg-slate-900 border border-amber-900/60 rounded-lg px-2.5 py-1.5 text-xs text-right font-bold text-amber-400 focus:outline-none focus:border-amber-500"
+          min="0.1"
+          max="100"
+          step="0.1"
+        />
+      </div>
+    </div>
+
+    <div className="lg:col-span-3 bg-gradient-to-br from-emerald-950/20 to-slate-950 p-6 rounded-2xl border border-emerald-900/30 flex flex-col justify-between">
+      <div className="space-y-4">
+        <span className="text-xs font-bold text-emerald-400 block uppercase tracking-wide">은퇴 후 복리 연금 수령 결과</span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800"><span className="text-[10px] text-slate-400 block">최종 은퇴 자산</span><span className="text-xl font-black text-white block mt-1">₩{calculatedFutureValue.total.toLocaleString()}</span></div>
+          {/* 💡 4% -> 변동된 인출률%가 라벨에 보이도록 수정 */}
+          <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800"><span className="text-[10px] text-slate-400 block">연간 {withdrawalRate}% 인출 기준액</span><span className="text-xl font-black text-emerald-400 block mt-1">₩{calculatedFutureValue.annualWithdrawal.toLocaleString()}</span></div>
+          <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800"><span className="text-[10px] text-slate-400 block">매월 노후 연금 생활비</span><span className="text-xl font-black text-amber-400 block mt-1">₩{calculatedFutureValue.monthlyWithdrawal.toLocaleString()}</span></div>
+        </div>
+      </div>
+      <div className="mt-6 pt-4 border-t border-slate-850 text-xs text-slate-400">
+        <span className="font-extrabold text-white block mb-1">📝 투자의 꿀팁:</span>
+        은퇴 자금 총액에서 매년 4%씩만 헐어서 생활비로 사용하면 자산의 성격과 시장 상황에 맞춘 유연한 현금흐름 파이프라인을 구축할 수 있습니다.
+      </div>
+    </div>
+  </div>
+</div>
+
+    {/* 2. 평생 절세 계좌 & 가이드 */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-md">
+        <span className="text-xs font-bold text-emerald-400 block uppercase">1. 평생 절세 6대 계좌 입금 우선순위</span>
+        <div className="mt-4 space-y-3.5">
+          {[
+            { n: 1, text: "ISA 계좌 연 2,000만원 한도 채우기" },
+            { n: 2, text: "연금저축펀드 연 600만원 한도" },
+            { n: 3, text: "IRP 계좌 연 300만원 한도 (연금 합산 900만원)" }
+          ].map(item => (
+            <div key={item.n} className="flex gap-3">
+              <span className="w-5 h-5 rounded-full bg-emerald-600/30 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-[10px] font-bold shrink-0">{item.n}</span>
+              <h5 className="text-xs font-bold text-white">{item.text}</h5>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-md">
+        <span className="text-xs font-bold text-rose-400 block uppercase">2. 건강보험료 및 연금 소득세 경감 가이드</span>
+        <div className="mt-4 space-y-3">
+          <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-850">
+            <h5 className="text-xs font-bold text-slate-200">⚠️ 사적 연금 1,500만원 수령 한도</h5>
+            <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">연간 1,500만원을 초과하면 종합과세 패널티가 발생합니다. 10년 이상 분배 수령하도록 사전에 설계하세요.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+          </main>
+
+         {/* 9. 자산 추가/수정 모달 팝업 */}
+{showAddModal && (
+  <div key={editingAsset?.id || 'new'} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm px-4">
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-850">
+        <h3 className="text-base font-extrabold text-white">{editingAsset ? '✏️ 자산 정보 수정' : '➕ 새로운 자산 등록'}</h3>
+        <button onClick={() => { setEditingAsset(null); setShowAddModal(false); }} className="text-slate-400 hover:text-white font-bold text-sm">닫기 ✕</button>
+      </div>
+
+      <form onSubmit={handleSaveAsset} className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 block">계좌 명칭</label><select name="account" defaultValue={editingAsset?.account || ACCOUNTS[0]} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white">{ACCOUNTS.map(acc => (<option key={acc} value={acc}>{acc}</option>))}</select></div>
+          <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 block">자산 대분류</label><select name="category" defaultValue={editingAsset?.category || CATEGORIES[0]} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white">{CATEGORIES.map(cat => (<option key={cat} value={cat}>{cat}</option>))}</select></div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="col-span-2 space-y-1"><label className="text-[10px] font-bold text-slate-400 block">종목명</label><input type="text" name="name" required placeholder="자산명" defaultValue={editingAsset?.name || ''} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white" /></div>
+          <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 block">종목코드</label><input type="text" name="ticker" placeholder="예: 005930" defaultValue={editingAsset?.ticker || ''} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white" /></div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 block">보유 수량</label><input type="number" name="quantity" required placeholder="0" defaultValue={editingAsset?.quantity || 0} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white text-right" /></div>
+          <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 block">매수 평균가</label><input type="number" name="price" required placeholder="0" defaultValue={editingAsset?.price || 0} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white text-right" /></div>
+          <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 block">현재 시세</label><input type="number" name="currentPrice" placeholder="0" defaultValue={editingAsset?.currentPrice || 0} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white text-right" /></div>
+        </div>
+
+        <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-850 space-y-3">
+          <span className="text-[10px] font-extrabold text-emerald-400 block">💡 분배금(배당금) 설정</span>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1"><label className="text-[9px] text-slate-400 block">주기</label><select name="dividendMonth" defaultValue={editingAsset?.dividendMonth || '매월'} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-white"><option value="매월">매월</option><option value="분기">분기</option><option value="없음">없음</option></select></div>
+            <div className="space-y-1"><label className="text-[9px] text-slate-400 block">주당 배당금(원)</label><input type="number" name="dividendAmount" placeholder="0" defaultValue={editingAsset?.dividendAmount || 0} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-white text-right" /></div>
+            <div className="space-y-1"><label className="text-[9px] text-slate-400 block">기준일</label><select name="dividendType" defaultValue={editingAsset?.dividendType || 'end'} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-white"><option value="mid">15일</option><option value="end">말일</option></select></div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-850">
+          <button type="button" onClick={() => setShowAddModal(false)} className="bg-slate-800 text-slate-300 font-bold text-xs px-4 py-2 rounded-lg">취소</button>
+          <button type="submit" className="bg-emerald-600 text-white font-bold text-xs px-5 py-2 rounded-lg">저장하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+
+          {/* 구글 설정 모달 */}
+          {showBackupCenter && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4">
+              <div className="bg-slate-900 p-6 rounded-2xl max-w-lg w-full border border-slate-800 space-y-4">
+                <h3 className="text-white font-bold">☁️ 구글 시트 연동 설정 (V8.0)</h3>
+                <form onSubmit={(e)=>{e.preventDefault(); const url=new FormData(e.target).get('gasUrl'); setGasUrl(url); localStorage.setItem('ttokjae_v8_gas_url',url); triggerNotification('URL 저장 완료. 데이터를 불러오세요!');}}>
+                  <input type="text" name="gasUrl" defaultValue={gasUrl} placeholder="Apps Script URL..." className="w-full bg-slate-950 p-2 border border-slate-800 text-xs text-white rounded mb-2"/>
+                  <div className="flex gap-2"><button type="button" onClick={handleBackupSheet} className="w-full bg-slate-800 text-white p-2 rounded text-xs">드라이브 파일 백업</button><button type="submit" className="w-full bg-emerald-600 text-white p-2 rounded text-xs">API 주소 저장</button></div>
+                </form>
+                <button onClick={()=>setShowBackupCenter(false)} className="w-full text-slate-500 text-xs mt-2">닫기</button>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then((reg) => console.log('PWA 서비스 워커 등록 성공'))
+          .catch((err) => console.log('PWA 서비스 워커 등록 실패', err));
+      });
+    }
+  </script>
+</body>
+</html>
