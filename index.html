@@ -771,19 +771,23 @@ const handleCreateManualSnapshot = () => {
           </section>
 
           <nav className="max-w-7xl mx-auto px-4 sm:px-8">
-  <div className="flex gap-2 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 overflow-x-auto">
-            <button onClick={()=>setActiveTab('dashboard')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='dashboard'?'bg-emerald-600 text-white':'text-slate-400'}`}>📊 종합 대시보드</button>
-            <button onClick={()=>setActiveTab('history')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='history'?'bg-emerald-600 text-white':'text-slate-400'}`}>🗓️ 월별 기록 & 수익률</button>
-            <button onClick={()=>setActiveTab('assets')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='assets'?'bg-emerald-600 text-white':'text-slate-400'}`}>💸 자산 편집</button>
-            <button onClick={()=>setActiveTab('rebalance')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='rebalance'?'bg-emerald-600 text-white':'text-slate-400'}`}>🔄 자산배분 & 리밸런싱</button>
-            <button onClick={()=>setActiveTab('dividends')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='dividends'?'bg-emerald-600 text-white':'text-slate-400'}`}>📅 월배당 달력</button>
-            <button onClick={()=>setActiveTab('cheatsheet')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='cheatsheet'?'bg-emerald-600 text-white':'text-slate-400'}`}>📚 계산기</button>
-          </div></nav>
+            <div className="flex gap-2 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 overflow-x-auto">
+              <button onClick={()=>setActiveTab('dashboard')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='dashboard'?'bg-emerald-600 text-white':'text-slate-400'}`}>📊 종합 대시보드</button>
+              <button onClick={()=>setActiveTab('history')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='history'?'bg-emerald-600 text-white':'text-slate-400'}`}>🗓️ 월별 기록 & 수익률</button>
+              <button onClick={()=>setActiveTab('assets')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='assets'?'bg-emerald-600 text-white':'text-slate-400'}`}>💸 자산 편집</button>
+              <button onClick={()=>setActiveTab('rebalance')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='rebalance'?'bg-emerald-600 text-white':'text-slate-400'}`}>🔄 자산배분 & 리밸런싱</button>
+              <button onClick={()=>setActiveTab('dividends')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='dividends'?'bg-emerald-600 text-white':'text-slate-400'}`}>📅 월배당 달력</button>
+              <button onClick={()=>setActiveTab('cheatsheet')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='cheatsheet'?'bg-emerald-600 text-white':'text-slate-400'}`}>📚 계산기</button>
+            </div>
+          </nav>
 
           {/* 수정 후 깔끔해진 코드 */}
 <main className="max-w-7xl mx-auto px-4 sm:px-8 mt-6">
-  {activeTab === 'dashboard' && (
-    <div className="space-y-6">
+     {activeTab === 'dashboard' && (
+  <div className="space-y-6">
+  
+   {activeTab === 'dashboard' && (
+              <div className="space-y-6">
       {/* 2. 자산 배분 및 현금흐름 (좌/우 완벽 밸런스 매칭 버전) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
                   
@@ -964,6 +968,9 @@ const handleCreateManualSnapshot = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
          
 
     {/* 🔥 [추가됨] 3. 총자산 역사적 우상향 추이 그래프 */}
@@ -1074,7 +1081,7 @@ const handleCreateManualSnapshot = () => {
       </tr>
     ))}
   </tbody>
-</table>
+        </table>
       </div>
     </div>
   </div>
@@ -1448,6 +1455,7 @@ const handleCreateManualSnapshot = () => {
     );
   })}
 </div>
+      </div>
 
      {/* 2. 월말 배당 */}
 <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-md">
@@ -1513,8 +1521,11 @@ const handleCreateManualSnapshot = () => {
         </div>
       );
     })}
-  </div>
 </div>
+      </div>
+    </div>
+  </div>
+)}
 
 
             {activeTab === 'cheatsheet' && (
