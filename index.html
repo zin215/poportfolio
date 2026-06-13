@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="자산 관리">
-  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="./icon-192.png">
 
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
@@ -60,6 +60,13 @@
     function App() {
       // 상태 관리
       const [assets, setAssets] = useState([]);
+// [추가할 부분] 시트의 계좌명들을 긁어와서 자동으로 배열(탭)을 완성합니다!
+  const ACCOUNTS = useMemo(() => {
+    const accs = [...new Set(assets.map(a => a.account))].filter(Boolean);
+    const defaultAccs = ['ISA', '연금저축1', '연금저축2', '연금저축3', 'IRP', '금현물/기타'];
+    return accs.length > 0 ? accs : defaultAccs;
+  }, [assets]);
+
       const [targetWeights, setTargetWeights] = useState({ '주식(미국)': 45, '주식(국내)': 5, '채권': 25, '대체자산/리츠': 10, '안전/현금': 15 });
       const [snapshots, setSnapshots] = useState([]);
      const [gasUrl, setGasUrl] = useState(() => {
@@ -138,7 +145,7 @@ const [withdrawalRate, setWithdrawalRate] = useState(4);
               if (/^\d+$/.test(cleanTicker)) cleanTicker = cleanTicker.padStart(6, '0');
               
               // 1. 한글 계좌명 매칭 (ACCOUNTS 배열에 있는 명칭인지 확인)
-              const accKey = ACCOUNTS.includes(row.account) ? row.account : '기타';
+              const accKey = row.account ? String(row.account).trim() : '기타';
               
               // 2. 완성된 자산 객체 반환 (★ 시트에서 넘어온 분류 및 배당 정보 우선 적용, 없을 때만 DB 참조)
               const backupInfo = getExtraInfo(cleanTicker);
@@ -1590,7 +1597,7 @@ const handleCreateManualSnapshot = () => {
     root.render(<App />);
 if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
+        navigator.serviceWorker.register('./sw.js')
           .then((reg) => console.log('PWA 서비스 워커 등록 성공'))
           .catch((err) => console.log('PWA 서비스 워커 등록 실패', err));
       });
