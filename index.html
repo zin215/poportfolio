@@ -345,25 +345,45 @@ const [withdrawalRate, setWithdrawalRate] = useState(4);
         } catch (e) { alert("백업 중 오류가 발생했습니다."); setDriveSyncStatus('error'); }
       };
 
-      // 수익률 및 총합계산 (N/A 안전장치 적용)
-      const portfolioStats = useMemo(() => {
-        let totalInvested = 0, totalCurrent = 0, totalAnnualDividend = 0, midMonthDividend = 0, endMonthDividend = 0;
-        assets.forEach(asset => {
-          const invested = Number(asset.quantity) * Number(asset.price);
-          const current = Number(asset.quantity) * (asset.currentPrice === 'N/A' ? Number(asset.price) : Number(asset.currentPrice));
-          totalInvested += invested; totalCurrent += current;
-          let annualDiv = 0;
-          if (asset.dividendMonth === '매월') { annualDiv = Number(asset.dividendAmount) * 12 * Number(asset.quantity); if (asset.dividendType === 'mid') midMonthDividend += Number(asset.dividendAmount) * Number(asset.quantity); else endMonthDividend += Number(asset.dividendAmount) * Number(asset.quantity); } 
-          else if (asset.dividendMonth === '분기') { annualDiv = Number(asset.dividendAmount) * 4 * Number(asset.quantity); if (asset.dividendType === 'mid') midMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 3; else endMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 3; }
-          else if (asset.dividendMonth === '반기') { annualDiv = Number(asset.dividendAmount) * 2 * Number(asset.quantity); } 
-          else if (asset.dividendMonth === '연간') { annualDiv = Number(asset.dividendAmount) * Number(asset.quantity); }
-          totalAnnualDividend += annualDiv;
-        });
-        const totalProfit = totalCurrent - totalInvested;
-        const profitRate = totalInvested > 0 ? (totalProfit / totalInvested) * 100 : 0;
-        const dividendYield = totalCurrent > 0 ? (totalAnnualDividend / totalCurrent) * 100 : 0;
-        return { totalInvested, totalCurrent, totalProfit, profitRate, totalAnnualDividend, dividendYield, midMonthDividend, endMonthDividend };
-      }, [assets]);
+      // 수정된 portfolioStats 계산 로직
+const portfolioStats = useMemo(() => {
+  let totalInvested = 0, totalCurrent = 0, totalAnnualDividend = 0, midMonthDividend = 0, endMonthDividend = 0;
+  assets.forEach(asset => {
+    const invested = Number(asset.quantity) * Number(asset.price);
+    const current = Number(asset.quantity) * (asset.currentPrice === 'N/A' ? Number(asset.price) : Number(asset.currentPrice));
+    totalInvested += invested; totalCurrent += current;
+    
+    let annualDiv = 0;
+    if (asset.dividendMonth === '매월') { 
+      annualDiv = Number(asset.dividendAmount) * 12 * Number(asset.quantity); 
+      if (asset.dividendType === 'mid') midMonthDividend += Number(asset.dividendAmount) * Number(asset.quantity); 
+      else endMonthDividend += Number(asset.dividendAmount) * Number(asset.quantity); 
+    } 
+    else if (asset.dividendMonth === '분기') { 
+      annualDiv = Number(asset.dividendAmount) * 4 * Number(asset.quantity); 
+      if (asset.dividendType === 'mid') midMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 3; 
+      else endMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 3; 
+    }
+    // 👇 반기 배당일 경우 월 평균을 구하기 위해 6으로 나누어 합산합니다.
+    else if (asset.dividendMonth === '반기') { 
+      annualDiv = Number(asset.dividendAmount) * 2 * Number(asset.quantity); 
+      if (asset.dividendType === 'mid') midMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 6; 
+      else endMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 6; 
+    } 
+    // 👇 연간 배당일 경우 월 평균을 구하기 위해 12로 나누어 합산합니다.
+    else if (asset.dividendMonth === '연간') { 
+      annualDiv = Number(asset.dividendAmount) * Number(asset.quantity); 
+      if (asset.dividendType === 'mid') midMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 12; 
+      else endMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 12; 
+    }
+    totalAnnualDividend += annualDiv;
+  });
+  
+  const totalProfit = totalCurrent - totalInvested;
+  const profitRate = totalInvested > 0 ? (totalProfit / totalInvested) * 100 : 0;
+  const dividendYield = totalCurrent > 0 ? (totalAnnualDividend / totalCurrent) * 100 : 0;
+  return { totalInvested, totalCurrent, totalProfit, profitRate, totalAnnualDividend, dividendYield, midMonthDividend, endMonthDividend };
+}, [assets]);
 
     // 스냅샷 엔진 (기준 연월 +1 버그 수정 및 시트 불러오기 시 유지 로직 보완)
       useEffect(() => {
@@ -760,16 +780,12 @@ const handleCreateManualSnapshot = () => {
             <button onClick={()=>setActiveTab('cheatsheet')} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${activeTab==='cheatsheet'?'bg-emerald-600 text-white':'text-slate-400'}`}>📚 계산기</button>
           </div></nav>
 
-          <main className="max-w-7xl mx-auto px-4 sm:px-8 mt-6">
-            
-            {activeTab === 'dashboard' && (
-  <div className="space-y-6">
-  
-   {activeTab === 'dashboard' && (
-              <div className="space-y-6">
-              
-                {/* 2. 자산 배분 및 현금흐름 (좌/우 완벽 밸런스 매칭 버전) */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          {/* 수정 후 깔끔해진 코드 */}
+<main className="max-w-7xl mx-auto px-4 sm:px-8 mt-6">
+  {activeTab === 'dashboard' && (
+    <div className="space-y-6">
+      {/* 2. 자산 배분 및 현금흐름 (좌/우 완벽 밸런스 매칭 버전) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
                   
                   {/* [왼쪽] 자산군 비중 원형 차트 카드 (7/12 너비 차지) */}
                   <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 flex flex-col justify-between shadow-lg lg:col-span-7 min-h-[420px]">
@@ -948,8 +964,7 @@ const handleCreateManualSnapshot = () => {
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+         
 
     {/* 🔥 [추가됨] 3. 총자산 역사적 우상향 추이 그래프 */}
                 <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-lg">
@@ -1500,6 +1515,7 @@ const handleCreateManualSnapshot = () => {
     })}
   </div>
 </div>
+
 
             {activeTab === 'cheatsheet' && (
   <div className="space-y-6">
