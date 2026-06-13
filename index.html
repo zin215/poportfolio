@@ -1569,7 +1569,8 @@ const handleCreateManualSnapshot = () => {
         <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-850 space-y-3">
           <span className="text-[10px] font-extrabold text-emerald-400 block">💡 분배금(배당금) 설정</span>
           <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1"><label className="text-[9px] text-slate-400 block">주기</label><select name="dividendMonth" defaultValue={editingAsset?.dividendMonth || '매월'} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-white"><option value="매월">매월</option><option value="분기">분기</option><option value="없음">없음</option></select></div>
+            <div className="space-y-1"><label className="text-[9px] text-slate-400 block">주기</label><select name="dividendMonth" defaultValue={editingAsset?.dividendMonth || '매월'} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-white"><option value="매월">매월</option><option value="분기">분기</option><option value="반기">반기</option>
+    <option value="연간">연간</option><option value="없음">없음</option></select></div>
             <div className="space-y-1"><label className="text-[9px] text-slate-400 block">주당 배당금(원)</label><input type="number" name="dividendAmount" placeholder="0" defaultValue={editingAsset?.dividendAmount || 0} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-white text-right" /></div>
             <div className="space-y-1"><label className="text-[9px] text-slate-400 block">기준일</label><select name="dividendType" defaultValue={editingAsset?.dividendType || 'end'} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-white"><option value="mid">15일</option><option value="end">말일</option></select></div>
           </div>
