@@ -73,7 +73,7 @@
   if (typeof APP_URL !== 'undefined' && APP_URL) {
     return APP_URL;
   }
-  return localStorage.getItem('ttokjae_v8_gas_url') || '';
+  return localStorage.getItem('my_portfolio_gas_url') || '';
 });
       const [driveSyncStatus, setDriveSyncStatus] = useState('disconnected');
       
@@ -101,21 +101,22 @@ const [withdrawalRate, setWithdrawalRate] = useState(4);
 
       // 로컬 스토리지 초기 로드
       useEffect(() => {
-        const localAssets = localStorage.getItem('ttokjae_portfolio_v8');
-        const localWeights = localStorage.getItem('ttokjae_target_weights_v8');
-        const localSnapshots = localStorage.getItem('ttokjae_snapshots_v8');
+        const localAssets = localStorage.getItem('my_portfolio_v8');
+        const localWeights = localStorage.getItem('my_target_weights_v8');
+        const localSnapshots = localStorage.getItem('my_snapshots_v8');
         if (localAssets) setAssets(JSON.parse(localAssets));
         if (localWeights) setTargetWeights(JSON.parse(localWeights));
         if (localSnapshots) setSnapshots(JSON.parse(localSnapshots));
       }, []);
 
+    // 로컬 스토리지에 저장 (불러올 때와 똑같은 이름으로 저장)
       const saveToLocal = (newAssets, newWeights, newSnaps) => {
-        localStorage.setItem('ttokjae_portfolio_v8', JSON.stringify(newAssets));
-        localStorage.setItem('ttokjae_target_weights_v8', JSON.stringify(newWeights));
-        localStorage.setItem('ttokjae_snapshots_v8', JSON.stringify(newSnaps));
+        localStorage.setItem('my_portfolio_v8', JSON.stringify(newAssets));
+        localStorage.setItem('my_target_weights_v8', JSON.stringify(newWeights));
+        localStorage.setItem('my_snapshots_v8', JSON.stringify(newSnaps));
       };
 
-      const triggerNotification = (message, type = 'success') => {
+     const triggerNotification = (message, type = 'success') => {
         setNotification({ message, type });
         setTimeout(() => setNotification(null), 3500);
       };
@@ -1580,7 +1581,7 @@ const handleCreateManualSnapshot = () => {
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4">
               <div className="bg-slate-900 p-6 rounded-2xl max-w-lg w-full border border-slate-800 space-y-4">
                 <h3 className="text-white font-bold">☁️ 구글 시트 연동 설정 (V8.0)</h3>
-                <form onSubmit={(e)=>{e.preventDefault(); const url=new FormData(e.target).get('gasUrl'); setGasUrl(url); localStorage.setItem('ttokjae_v8_gas_url',url); triggerNotification('URL 저장 완료. 데이터를 불러오세요!');}}>
+                <form onSubmit={(e)=>{e.preventDefault(); const url=new FormData(e.target).get('gasUrl'); setGasUrl(url); localStorage.setItem('my_portfolio_gas_url',url); triggerNotification('URL 저장 완료. 데이터를 불러오세요!');}}>
                   <input type="text" name="gasUrl" defaultValue={gasUrl} placeholder="Apps Script URL..." className="w-full bg-slate-950 p-2 border border-slate-800 text-xs text-white rounded mb-2"/>
                   <div className="flex gap-2"><button type="button" onClick={handleBackupSheet} className="w-full bg-slate-800 text-white p-2 rounded text-xs">드라이브 파일 백업</button><button type="submit" className="w-full bg-emerald-600 text-white p-2 rounded text-xs">API 주소 저장</button></div>
                 </form>
