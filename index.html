@@ -747,7 +747,7 @@ const handleCreateManualSnapshot = () => {
   {/* justify-start로 변경하여 왼쪽 정렬 */}
   <h3 className={`text-2xl font-black mt-1 flex items-center justify-start gap-1 ${portfolioStats.totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
     {portfolioStats.totalProfit >= 0 ? '+' : ''}
-    ₩{Math.abs(portfolioStats.totalProfit).toLocaleString()}
+    ₩ {Math.abs(portfolioStats.totalProfit).toLocaleString()}
   </h3>
   
   {/* 수익률도 손익과 같은 색상으로 맞추면 가독성이 좋아집니다 */}
