@@ -653,8 +653,8 @@ const handleCreateManualSnapshot = () => {
       : (<input type="number" name="currentPrice" value={editData.currentPrice} onChange={handleChange} className="bg-transparent w-20 text-right focus:outline-none focus:border-b focus:border-emerald-500 text-sky-300"/>)}
     </td>
 
-    <td className="py-4 px-4 text-right font-black text-white">₩{currentVal.toLocaleString()}</td>
-    <td className={`py-4 px-4 text-right font-bold ${profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}><div>{profit >= 0 ? '+' : ''}₩{(profit || 0).toLocaleString()}</div><div className="text-[10px] font-semibold">{profit >= 0 ? '▲' : '▼'}{profitPct.toFixed(1)}%</div></td>
+    <td className="py-4 px-4 text-right font-black text-white">₩ {currentVal.toLocaleString()}</td>
+    <td className={`py-4 px-4 text-right font-bold ${profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}><div>{profit >= 0 ? '+' : ''}₩ {(profit || 0).toLocaleString()}</div><div className="text-[10px] font-semibold">{profit >= 0 ? '▲' : '▼'}{profitPct.toFixed(1)}%</div></td>
 
     {/* 🔥 배당 정보 열 추가 */}
    <td className="py-4 px-4 text-center">
@@ -673,7 +673,7 @@ const handleCreateManualSnapshot = () => {
 
       {/* 2. 중앙: 배당금액 */}
       <span className="text-[10px] font-bold text-amber-400">
-        ₩{Number(asset.dividendAmount).toLocaleString()}
+        ₩ {Number(asset.dividendAmount).toLocaleString()}
       </span>
 
       {/* 3. 하단: 배당 지급일 유형 */}
@@ -736,33 +736,41 @@ const handleCreateManualSnapshot = () => {
                 {/* 카드 1 */}
                 <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between">
                   <p className="text-slate-400 text-xs font-medium">총 평가 자산</p>
-                  <h3 className="text-2xl font-black text-white mt-1">₩{portfolioStats.totalCurrent.toLocaleString()}</h3>
-                  <div className="text-xs text-slate-500 mt-1">원금: ₩{portfolioStats.totalInvested.toLocaleString()}</div>
+                  <h3 className="text-2xl font-black text-white mt-1">₩ {portfolioStats.totalCurrent.toLocaleString()}</h3>
+                  <div className="text-xs text-slate-500 mt-1">원금: ₩ {portfolioStats.totalInvested.toLocaleString()}</div>
                 </div>
                 
-                {/* 카드 2 */}
-                <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between">
-                  <p className="text-slate-400 text-xs font-medium">누적 평가 손익</p>
-                  <h3 className={`text-2xl font-black mt-1 ${portfolioStats.totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {portfolioStats.totalProfit >= 0 ? '+' : ''}₩{portfolioStats.totalProfit.toLocaleString()}
-                  </h3>
-                  <div className="text-xs text-slate-500 mt-1">수익률: {portfolioStats.profitRate.toFixed(2)}%</div>
-                </div>
-                
+              {/* 카드 2: 누적 평가 손익 (좌측 정렬 및 색상 일관성 적용) */}
+<div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between">
+  <p className="text-slate-400 text-xs font-medium">누적 평가 손익</p>
+  
+  {/* justify-start로 변경하여 왼쪽 정렬 */}
+  <h3 className={`text-2xl font-black mt-1 flex items-center justify-start gap-1 ${portfolioStats.totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+    {portfolioStats.totalProfit >= 0 ? '+' : ''}
+    ₩{Math.abs(portfolioStats.totalProfit).toLocaleString()}
+  </h3>
+  
+  {/* 수익률도 손익과 같은 색상으로 맞추면 가독성이 좋아집니다 */}
+  <div className={`text-xs mt-1 font-semibold flex items-center justify-start gap-1 ${portfolioStats.profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+  수익률: {portfolioStats.profitRate > 0 ? '▲ ' : portfolioStats.profitRate < 0 ? '▼ ' : ''}
+  {Math.abs(portfolioStats.profitRate).toFixed(2)}%
+</div>
+</div>
+        
                 {/* 카드 3 */}
                 <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between">
                   <p className="text-slate-400 text-xs font-medium">예상 연간 배당금</p>
-                  <h3 className="text-2xl font-black text-amber-400 mt-1">₩{portfolioStats.totalAnnualDividend.toLocaleString()}</h3>
+                  <h3 className="text-2xl font-black text-amber-400 mt-1">₩ {portfolioStats.totalAnnualDividend.toLocaleString()}</h3>
                   <div className="text-xs text-slate-500 mt-1">배당률: {portfolioStats.dividendYield.toFixed(2)}%</div>
                 </div>
                 
                 {/* 카드 4 */}
                 <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between">
                   <p className="text-slate-400 text-xs font-medium">하루에 불어나는 이자 (배당)</p>
-                  <h3 className="text-2xl font-black text-teal-400 mt-1">₩{Math.round(portfolioStats.totalAnnualDividend / 365).toLocaleString()}</h3>
+                  <h3 className="text-2xl font-black text-teal-400 mt-1">₩ {Math.round(portfolioStats.totalAnnualDividend / 365).toLocaleString()}</h3>
                   <div className="flex gap-2 text-[10px] text-slate-500 mt-1">
-                      <div>월중(15일): <span className="text-teal-300">₩{Math.round(portfolioStats.midMonthDividend).toLocaleString()}</span></div>
-                  <div>월말(말일): <span className="text-teal-300">₩{Math.round(portfolioStats.endMonthDividend).toLocaleString()}</span></div>
+                      <div>월중(15일): <span className="text-teal-300">₩ {Math.round(portfolioStats.midMonthDividend).toLocaleString()}</span></div>
+                  <div>월말(말일): <span className="text-teal-300">₩ {Math.round(portfolioStats.endMonthDividend).toLocaleString()}</span></div>
                   </div>
                 </div>
 
@@ -852,7 +860,7 @@ const handleCreateManualSnapshot = () => {
                               </div>
                               <div className="text-right whitespace-nowrap">
                                 <span className="text-[11px] font-medium text-slate-500 mr-2">
-                                  ₩{Math.round(stat.value / 10000).toLocaleString()}만
+                                  ₩ {Math.round(stat.value / 10000).toLocaleString()}만
                                 </span>
                                 <span className="text-xs font-black text-white">
                                   {(stat.percent || 0).toFixed(1)}%
@@ -873,7 +881,7 @@ const handleCreateManualSnapshot = () => {
                       <div className="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-md">
                         <span className="text-[10px] font-bold text-slate-400 block">월평균 배당</span>
                         <h2 className="text-xl font-black text-amber-400 mt-1">
-                          ₩{Math.round((portfolioStats?.totalAnnualDividend || 0) / 12).toLocaleString()}
+                          ₩ {Math.round((portfolioStats?.totalAnnualDividend || 0) / 12).toLocaleString()}
                         </h2>
                       </div>
                       <div className="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-md">
@@ -895,7 +903,7 @@ const handleCreateManualSnapshot = () => {
                       <div className="space-y-2.5 py-1">
                         <div className="flex items-center justify-between text-xs text-slate-400">
                           <span>월중 배당(추천 15일 분배형)</span>
-                          <span className="text-teal-400 font-extrabold">₩{(portfolioStats?.midMonthDividend || 0).toLocaleString()}</span>
+                          <span className="text-teal-400 font-extrabold">₩ {(portfolioStats?.midMonthDividend || 0).toLocaleString()}</span>
                         </div>
                         
                         {(() => {
@@ -914,7 +922,7 @@ const handleCreateManualSnapshot = () => {
 
                         <div className="flex items-center justify-between text-xs text-slate-400">
   <span>월말 배당(안정 대표지수형)</span>
-  <span className="text-teal-400 font-extrabold">₩{Math.round(portfolioStats?.endMonthDividend || 0).toLocaleString()}</span>
+  <span className="text-teal-400 font-extrabold">₩ {Math.round(portfolioStats?.endMonthDividend || 0).toLocaleString()}</span>
 </div>
                       </div>
 
@@ -951,7 +959,7 @@ const handleCreateManualSnapshot = () => {
                           return (
                             <div key={month} className="flex flex-col items-center group relative cursor-pointer">
                               <div className="absolute -top-12 left-1/2 -translate-x-1/2 scale-0 group-hover:scale-100 transition-all bg-slate-950 text-white text-[10px] p-1.5 rounded-lg border border-slate-700 shadow-xl z-20 whitespace-nowrap">
-                                {month}월: ₩{Math.round(totalMonthAmount).toLocaleString()}
+                                {month}월: ₩ {Math.round(totalMonthAmount).toLocaleString()}
                               </div>
                               <div className="w-full bg-slate-950 rounded-t-sm h-16 flex items-end">
                                 <div 
@@ -992,10 +1000,10 @@ const handleCreateManualSnapshot = () => {
                     {hoveredPoint && (
                       <div className="absolute z-20 pointer-events-none bg-slate-900 border border-emerald-500/50 p-3 rounded-xl shadow-2xl text-xs text-left space-y-0.5" style={{ left: `${Math.min(hoveredPoint.x * (100 / 600) + 1, 75)}%`, top: '15px' }}>
                         <div className="text-[10px] font-bold text-slate-400">{hoveredPoint.month} 종합 결산</div>
-                        <div className="text-emerald-400 font-extrabold">총자산: ₩{hoveredPoint.value.toLocaleString()}</div>
-                        <div className="text-slate-300">원금: ₩{hoveredPoint.invested.toLocaleString()}</div>
+                        <div className="text-emerald-400 font-extrabold">총자산: ₩ {hoveredPoint.value.toLocaleString()}</div>
+                        <div className="text-slate-300">원금: ₩ {hoveredPoint.invested.toLocaleString()}</div>
                         <div className={`text-[10px] font-bold ${hoveredPoint.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          누적손익: ₩{hoveredPoint.profit.toLocaleString()} ({((hoveredPoint.profit / (hoveredPoint.invested || 1)) * 100).toFixed(1)}%)
+                          누적손익: ₩ {hoveredPoint.profit.toLocaleString()} ({((hoveredPoint.profit / (hoveredPoint.invested || 1)) * 100).toFixed(1)}%)
                         </div>
                       </div>
                     )}
@@ -1011,7 +1019,7 @@ const handleCreateManualSnapshot = () => {
                       {chartMetrics.yGridValues.map((g, idx) => (
                         <g key={idx} className="opacity-40">
                           <line x1={chartMetrics.paddingLeft} y1={g.y} x2={600 - chartMetrics.paddingRight} y2={g.y} stroke="#334155" strokeWidth="1" strokeDasharray="3 3" />
-                          <text x={chartMetrics.paddingLeft - 8} y={g.y + 4} className="text-[9px] font-semibold fill-slate-400" textAnchor="end">
+                          <text x={chartMetrics.paddingLeft - 8} y={g.y + 4} className="text-[8px] font-semibold fill-slate-200" textAnchor="end">
                             {g.val >= 100000000 ? `${(g.val / 100000000).toFixed(1)}억` : `${Math.round(g.val / 10000).toLocaleString()}만`}
                           </text>
                         </g>
@@ -1035,7 +1043,7 @@ const handleCreateManualSnapshot = () => {
                       {chartMetrics.points.map((p, idx) => {
                         const labelInterval = trendPeriod === 24 ? 3 : trendPeriod === 12 ? 2 : 1;
                         if (idx % labelInterval !== 0 && idx !== chartMetrics.points.length - 1) return null;
-                        return <text key={idx} x={p.x} y={180 - 8} className="text-[9px] font-bold fill-slate-500" textAnchor="middle">{p.month}</text>;
+                        return <text key={idx} x={p.x} y={180 - 8} className="text-[7px] font-bold fill-slate-400" textAnchor="middle">{p.month}</text>;
                       })}
 
                       {chartMetrics.points.map((p, idx) => {
@@ -1047,54 +1055,94 @@ const handleCreateManualSnapshot = () => {
                   </div>
                 </div>
 
-    {/* 4. 절세 계좌별 상세 종목 현황 */}
-    <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-lg">
-      <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
-        <h4 className="text-lg font-bold text-white">🛡️ 절세 계좌별 상세 종목 현황</h4>
-        <div className="flex gap-2 overflow-x-auto">
-          {ACCOUNTS.map(acc => (
-            <button key={acc} onClick={() => setSelectedAccountDetailTab(acc)} 
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold ${selectedAccountDetailTab === acc ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
-              {acc}
-            </button>
-          ))}
+    {/* 4. 절세 계좌별 상세 종목 현황 (심플 & 모던 톤다운 버전) */}
+    <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-lg flex flex-col justify-between min-h-[350px]">
+      
+      {/* [맨 위 공간] 상단 타이틀 및 계좌 전환 탭 */}
+      <div className="pb-4 border-b border-slate-800/50">
+        <div className="flex flex-col lg:flex-row justify-between gap-4">
+          <div>
+            <h4 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+              <span>🛡️</span> 절세 계좌별 상세 종목 현황
+            </h4>
+            <p className="text-[11px] text-slate-500 mt-0.5 font-medium">선택한 계좌의 보유 종목과 평가금액을 확인합니다.</p>
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto bg-slate-950/50 p-1 rounded-xl border border-slate-800/50 self-start lg:self-center">
+            {ACCOUNTS.map(acc => (
+              <button 
+                key={acc} 
+                onClick={() => setSelectedAccountDetailTab(acc)} 
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  selectedAccountDetailTab === acc 
+                    ? 'bg-slate-700 text-white' 
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                {acc}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs text-slate-300 table-fixed"> {/* table-fixed 추가 권장 */}
-  <thead className="text-slate-400 border-b border-slate-800">
-    <tr>
-      <th className="py-3 w-2/5">종목명</th>         {/* 40% */}
-      <th className="py-3 text-right w-1/5">수량</th>   {/* 20% */}
-      <th className="py-3 text-right w-1/5">현재가</th> {/* 20% */}
-      <th className="py-3 text-right w-1/5">평가금액</th> {/* 20% */}
-    </tr>
-  </thead>
-  <tbody>
-    {assets.filter(a => a.account === selectedAccountDetailTab).map(asset => (
-      <tr key={asset.id} className="border-b border-slate-800/50">
-        {/* 종목명이 너무 길면 truncate로 말줄임표 처리하여 레이아웃 방어 */}
-        <td className="py-3 truncate">{asset.name}</td> 
-        <td className="py-3 text-right">{Number(asset.quantity).toLocaleString()}주</td>
-        <td className="py-3 text-right">₩{Number(asset.currentPrice).toLocaleString()}</td>
-        <td className="py-3 text-right font-bold text-white">₩{(Number(asset.quantity) * Number(asset.currentPrice)).toLocaleString()}</td>
-      </tr>
-    ))}
-  </tbody>
-{/* ★ 새로 추가할 부분: 계좌 총합 표시 */}
-<tfoot className="bg-slate-900/50 border-t-2 border-slate-700">
-  <tr>
-    <td className="py-4 px-4 font-black text-slate-300 text-left">계좌 총계</td>
-    <td className="py-4"></td>
-    <td className="py-4"></td>
-    <td className="py-4 px-4 text-right pr-4 font-black text-emerald-400 text-lg">
-      ₩{Math.round(accountStats[selectedAccountDetailTab]?.value || 0).toLocaleString()}
-    </td>
-  </tr>
-</tfoot>
+
+      {/* [중앙 공간] 실제 종목 리스트 테이블 */}
+      <div className="overflow-x-auto grow py-4 flex flex-col justify-start">
+        <table className="w-full text-left text-xs text-slate-300 table-fixed">
+          <colgroup>
+            <col className="w-2/5" />
+            <col className="w-1/5" />
+            <col className="w-1/5" />
+            <col className="w-1/5" />
+          </colgroup>
+          <thead className="text-slate-400 border-b border-slate-800/50 font-medium">
+            <tr>
+              <th className="py-2.5 pb-3">종목명</th>
+              <th className="py-2.5 pb-3 text-right">수량</th>
+              <th className="py-2.5 pb-3 text-right">현재가</th>
+              <th className="py-2.5 pb-3 text-right">평가금액</th>
+            </tr>
+          </thead>
+          {/* 종목 나누는 줄을 아주 연한 반투명 선으로 수정 */}
+          <tbody className="divide-y divide-slate-800/40">
+            {assets.filter(a => a.account === selectedAccountDetailTab).length === 0 ? (
+              <tr>
+                <td colSpan="4" className="py-10 text-center text-slate-600 font-medium">
+                  이 계좌에 등록된 자산이 없습니다.
+                </td>
+              </tr>
+            ) : (
+              assets.filter(a => a.account === selectedAccountDetailTab).map(asset => {
+                const validPrice = asset.currentPrice === 'N/A' || !asset.currentPrice ? asset.price : asset.currentPrice;
+                return (
+                  <tr key={asset.id} className="hover:bg-slate-800/20 transition-colors">
+                    {/* 종목명이 너무 길면 truncate로 말줄임표 처리하여 레이아웃 방어 */}
+                    <td className="py-3 truncate font-bold text-slate-200">{asset.name}</td> 
+                    <td className="py-3 text-right text-right font-medium">{Number(asset.quantity).toLocaleString()}주</td>
+                    <td className="py-3 text-right text-right font-medium">₩ {Number(validPrice).toLocaleString()}</td>
+                    <td className="py-3 text-right font-bold text-white">
+                      ₩ {(Number(asset.quantity) * Number(validPrice)).toLocaleString()}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
         </table>
       </div>
+
+      {/* [맨 아래 공간] 튀지 않고 은은한 총계 요약 바 */}
+      <div className="pt-2">
+        <div className="bg-slate-800/30 px-5 py-2.5 rounded-2xl flex items-center justify-between">
+          <span className="text-sm font-bold text-slate-400">
+            {selectedAccountDetailTab} 계좌 총계
+          </span>
+          <span className="text-lg font-bold text-emerald-400/90">
+            ₩ {Math.round(accountStats[selectedAccountDetailTab]?.value || 0).toLocaleString()}
+          </span>
+        </div>
+      </div>
     </div>
+    
   </div>
 )}
 
@@ -1160,23 +1208,29 @@ const handleCreateManualSnapshot = () => {
           <div className="space-y-2.5">
             <div className="flex justify-between items-center text-xs">
               <span className="text-slate-400">최종 자산 총액</span>
-              <span className="text-white font-semibold">₩{yearTotal.toLocaleString()}</span>
+              <span className="text-white font-semibold">₩ {yearTotal.toLocaleString()}</span>
             </div>
             <div className="flex justify-between items-center text-xs">
               <span className="text-slate-400">총 투자 원금</span>
-              <span className="text-slate-300">₩{yearInvested.toLocaleString()}</span>
+              <span className="text-slate-300">₩ {yearInvested.toLocaleString()}</span>
             </div>
             <div className="flex justify-between items-center text-xs border-t border-slate-800/60 pt-2.5">
               <span className="text-slate-400">누적 평가 손익</span>
-              <span className={`font-bold ${yearProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {yearProfit >= 0 ? '+' : ''}₩{yearProfit.toLocaleString()}
-              </span>
+<span className={`font-bold ${yearProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+      {yearProfitRate >= 0 ? '+' : ''}
+  ₩ {Math.abs(yearProfit).toLocaleString()}
+</span>
             </div>
             <div className="flex justify-between items-center text-xs">
               <span className="text-slate-400">연간 최종 수익률</span>
-              <span className={`px-2 py-0.5 rounded font-bold text-[11px] ${yearProfitRate >= 0 ? 'bg-emerald-950/40 text-emerald-400' : 'bg-rose-950/40 text-rose-400'}`}>
-                {yearProfitRate >= 0 ? '+' : ''}{yearProfitRate.toFixed(2)}%
-              </span>
+             <span className={`px-2 py-0.5 rounded font-bold text-[11px] flex items-center gap-1 w-fit ${
+  yearProfitRate >= 0 
+    ? 'bg-emerald-950/40 text-emerald-400' 
+    : 'bg-rose-950/40 text-rose-400'
+}`}>
+ {yearProfitRate > 0 ? '▲' : yearProfitRate < 0 ? '▼' : ''}
+  {yearProfitRate.toFixed(2)}%
+</span>
             </div>
           </div>
         </div>
@@ -1231,9 +1285,9 @@ const handleCreateManualSnapshot = () => {
             {s.formattedDate}
             {isCurrentMonth && <span className="ml-2 text-[8px] bg-emerald-600/30 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/40">실시간 갱신 중 (저장 가능)</span>}
           </td>
-          <td className="py-3 px-4 text-right font-bold">₩{s.total.toLocaleString()}</td>
-          <td className="py-3 px-4 text-right text-slate-400">₩{s.invested.toLocaleString()}</td>
-          <td className={`py-3 px-4 text-right font-semibold ${s.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>₩{s.profit.toLocaleString()}</td>
+          <td className="py-3 px-4 text-right font-bold">₩ {s.total.toLocaleString()}</td>
+          <td className="py-3 px-4 text-right text-slate-400">₩ {s.invested.toLocaleString()}</td>
+          <td className={`py-3 px-4 text-right font-semibold ${s.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>₩ {s.profit.toLocaleString()}</td>
           <td className="py-3 px-4 text-center">
             <span className={`px-2 py-0.5 rounded font-bold ${snapProfitRate >= 0 ? 'bg-emerald-950/60 text-emerald-400' : 'bg-rose-950/60 text-rose-400'}`}>
               {snapProfitRate >= 0 ? '+' : ''}{snapProfitRate.toFixed(2)}%
@@ -1351,7 +1405,7 @@ const handleCreateManualSnapshot = () => {
                     <div>
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
                         <h4 className="text-lg font-bold text-white">비중 차이 진단 및 리밸런싱 액션 플랜</h4>
-                        <span className="text-xs text-emerald-400 font-semibold bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800/40">현재 자산규모: ₩{portfolioStats.totalCurrent.toLocaleString()}</span>
+                        <span className="text-xs text-emerald-400 font-semibold bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800/40">현재 자산규모: ₩ {portfolioStats.totalCurrent.toLocaleString()}</span>
                       </div>
                       <p className="text-slate-400 text-xs mb-4">목표 비중과 실제 포트폴리오를 실시간 대조하여 모자란 자산을 맞춤형으로 안내합니다.</p>
 
@@ -1362,7 +1416,7 @@ const handleCreateManualSnapshot = () => {
                         </div>
                         <div className="w-full sm:w-auto relative">
                           <input type="number" placeholder="신규 입금액 (원)" value={newCapital || ''} onChange={(e) => setNewCapital(Number(e.target.value))} className="w-full sm:w-48 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-right text-white focus:outline-none focus:border-emerald-500 font-bold" />
-                          <span className="absolute left-3 top-2 text-[10px] text-slate-400">₩</span>
+                          <span className="absolute left-3 top-2 text-[10px] text-slate-400">₩ </span>
                         </div>
                       </div>
 
@@ -1381,8 +1435,8 @@ const handleCreateManualSnapshot = () => {
                               <div className="text-right w-full sm:w-1/3">
                                 {row.difference === 0 ? <span className="text-xs text-slate-400 font-bold">비중 일치</span> : (
                                   <div>
-                                    <span className={`text-xs font-extrabold ${isOver ? 'text-rose-400 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-900/40' : 'text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-900/40'}`}>{isOver ? '일부 매도' : '추가 매수'} ₩{Math.round(Math.abs(row.difference)).toLocaleString()}</span>
-                                    <span className="text-[10px] text-slate-500 block mt-1 font-semibold">목표이상향: ₩{Math.round(row.idealVal).toLocaleString()}</span>
+                                    <span className={`text-xs font-extrabold ${isOver ? 'text-rose-400 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-900/40' : 'text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-900/40'}`}>{isOver ? '일부 매도' : '추가 매수'} ₩ {Math.round(Math.abs(row.difference)).toLocaleString()}</span>
+                                    <span className="text-[10px] text-slate-500 block mt-1 font-semibold">목표이상향: ₩ {Math.round(row.idealVal).toLocaleString()}</span>
                                   </div>
                                 )}
                               </div>
@@ -1407,7 +1461,7 @@ const handleCreateManualSnapshot = () => {
       </div>
       <div className="bg-slate-950 px-6 py-4 rounded-xl border border-slate-800 text-center shrink-0 w-full md:w-auto">
         <span className="text-[10px] text-slate-400 font-bold block">월평균 예상 배당 수익</span>
-        <span className="text-2xl font-black text-amber-400 block mt-1">₩{Math.round(portfolioStats.totalAnnualDividend / 12).toLocaleString()}</span>
+        <span className="text-2xl font-black text-amber-400 block mt-1">₩ {Math.round(portfolioStats.totalAnnualDividend / 12).toLocaleString()}</span>
       </div>
     </div>
 
@@ -1417,7 +1471,7 @@ const handleCreateManualSnapshot = () => {
       <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-md">
         <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
           <span className="text-sm font-bold text-white flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-teal-500 animate-pulse" />📅 월중(15일) 배당형 자산 목록</span>
-          <span className="text-xs text-teal-300 font-extrabold bg-teal-950 border border-teal-800 px-2 py-0.5 rounded">소계 ₩{portfolioStats.midMonthDividend.toLocaleString()}</span>
+          <span className="text-xs text-teal-300 font-extrabold bg-teal-950 border border-teal-800 px-2 py-0.5 rounded">소계 ₩ {portfolioStats.midMonthDividend.toLocaleString()}</span>
         </div>
         <div className="space-y-3">
   {assets.filter(a => a.dividendType === 'mid' && Number(a.dividendAmount) > 0).map(asset => {
@@ -1457,10 +1511,10 @@ const handleCreateManualSnapshot = () => {
         </div>
         <div className="text-right">
           <span className="text-xs font-bold text-emerald-400 block">
-            ₩{Math.round(expectedMonthly).toLocaleString()}
+            ₩ {Math.round(expectedMonthly).toLocaleString()}
             <span className="text-[10px] text-slate-500">{label}</span>
           </span>
-          <span className="text-[10px] text-slate-500">주당 ₩{Number(asset.dividendAmount).toLocaleString()}</span>
+          <span className="text-[10px] text-slate-500">주당 ₩ {Number(asset.dividendAmount).toLocaleString()}</span>
         </div>
       </div>
     );
@@ -1476,7 +1530,7 @@ const handleCreateManualSnapshot = () => {
       📅 월말(말일) 배당형 자산 목록
     </span>
     <span className="text-xs text-emerald-300 font-extrabold bg-emerald-950 border border-emerald-800 px-2 py-0.5 rounded">
-      소계 ₩{Math.round(portfolioStats.endMonthDividend).toLocaleString()}
+      소계 ₩ {Math.round(portfolioStats.endMonthDividend).toLocaleString()}
     </span>
   </div>
   
@@ -1522,11 +1576,11 @@ const handleCreateManualSnapshot = () => {
           </div>
           <div className="text-right">
             <span className="text-xs font-bold text-emerald-400 block">
-              ₩{Math.round(expectedMonthly).toLocaleString()}
+              ₩ {Math.round(expectedMonthly).toLocaleString()}
               <span className="text-[10px] text-slate-500">{label}</span>
             </span>
             <span className="text-[10px] text-slate-500">
-              주당 ₩{Number(asset.dividendAmount).toLocaleString()}
+              주당 ₩ {Number(asset.dividendAmount).toLocaleString()}
             </span>
           </div>
         </div>
@@ -1574,10 +1628,10 @@ const handleCreateManualSnapshot = () => {
       <div className="space-y-4">
         <span className="text-xs font-bold text-emerald-400 block uppercase tracking-wide">은퇴 후 복리 연금 수령 결과</span>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800"><span className="text-[10px] text-slate-400 block">최종 은퇴 자산</span><span className="text-xl font-black text-white block mt-1">₩{calculatedFutureValue.total.toLocaleString()}</span></div>
+          <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800"><span className="text-[10px] text-slate-400 block">최종 은퇴 자산</span><span className="text-xl font-black text-white block mt-1">₩ {calculatedFutureValue.total.toLocaleString()}</span></div>
           {/* 💡 4% -> 변동된 인출률%가 라벨에 보이도록 수정 */}
-          <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800"><span className="text-[10px] text-slate-400 block">연간 {withdrawalRate}% 인출 기준액</span><span className="text-xl font-black text-emerald-400 block mt-1">₩{calculatedFutureValue.annualWithdrawal.toLocaleString()}</span></div>
-          <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800"><span className="text-[10px] text-slate-400 block">매월 노후 연금 생활비</span><span className="text-xl font-black text-amber-400 block mt-1">₩{calculatedFutureValue.monthlyWithdrawal.toLocaleString()}</span></div>
+          <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800"><span className="text-[10px] text-slate-400 block">연간 {withdrawalRate}% 인출 기준액</span><span className="text-xl font-black text-emerald-400 block mt-1">₩ {calculatedFutureValue.annualWithdrawal.toLocaleString()}</span></div>
+          <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800"><span className="text-[10px] text-slate-400 block">매월 노후 연금 생활비</span><span className="text-xl font-black text-amber-400 block mt-1">₩ {calculatedFutureValue.monthlyWithdrawal.toLocaleString()}</span></div>
         </div>
       </div>
       <div className="mt-6 pt-4 border-t border-slate-850 text-xs text-slate-400">
