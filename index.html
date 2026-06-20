@@ -362,36 +362,49 @@ const [withdrawalRate, setWithdrawalRate] = useState(4);
         } catch (e) { alert("백업 중 오류가 발생했습니다."); setDriveSyncStatus('error'); }
       };
 
-      // 수정된 portfolioStats 계산 로직
-const portfolioStats = useMemo(() => {
+      const portfolioStats = useMemo(() => {
+  // 1. 데이터가 없을 때의 안전장치 (오류 방지)
+  if (!assets || !Array.isArray(assets)) {
+    return { totalInvested: 0, totalCurrent: 0, totalProfit: 0, profitRate: 0, totalAnnualDividend: 0, dividendYield: 0, midMonthDividend: 0, endMonthDividend: 0 };
+  }
+
   let totalInvested = 0, totalCurrent = 0, totalAnnualDividend = 0, midMonthDividend = 0, endMonthDividend = 0;
+  
   assets.forEach(asset => {
-    const invested = Number(asset.quantity) * Number(asset.price);
-    const current = Number(asset.quantity) * (asset.currentPrice === 'N/A' ? Number(asset.price) : Number(asset.currentPrice));
-    totalInvested += invested; totalCurrent += current;
+    // 2. 숫자 처리 안전장치 (Number() 사용)
+    const qty = Number(asset.quantity) || 0;
+    const price = Number(asset.price) || 0;
+    const currentPrice = asset.currentPrice === 'N/A' ? price : (Number(asset.currentPrice) || price);
+    const divAmount = Number(asset.dividendAmount) || 0;
+
+    const invested = qty * price;
+    const current = qty * currentPrice;
+    
+    totalInvested += invested; 
+    totalCurrent += current;
     
     let annualDiv = 0;
+    const totalDivValue = divAmount * qty; // 개당 금액 * 수량
+
     if (asset.dividendMonth === '매월') { 
-      annualDiv = Number(asset.dividendAmount) * 12 * Number(asset.quantity); 
-      if (asset.dividendType === 'mid') midMonthDividend += Number(asset.dividendAmount) * Number(asset.quantity); 
-      else endMonthDividend += Number(asset.dividendAmount) * Number(asset.quantity); 
+      annualDiv = divAmount * 12 * qty; 
+      if (asset.dividendType === 'mid') midMonthDividend += totalDivValue; 
+      else endMonthDividend += totalDivValue; 
     } 
     else if (asset.dividendMonth === '분기') { 
-      annualDiv = Number(asset.dividendAmount) * 4 * Number(asset.quantity); 
-      if (asset.dividendType === 'mid') midMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 3; 
-      else endMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 3; 
+      annualDiv = divAmount * 4 * qty; 
+      if (asset.dividendType === 'mid') midMonthDividend += totalDivValue / 3; 
+      else endMonthDividend += totalDivValue / 3; 
     }
-    // 👇 반기 배당일 경우 월 평균을 구하기 위해 6으로 나누어 합산합니다.
     else if (asset.dividendMonth === '반기') { 
-      annualDiv = Number(asset.dividendAmount) * 2 * Number(asset.quantity); 
-      if (asset.dividendType === 'mid') midMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 6; 
-      else endMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 6; 
+      annualDiv = divAmount * 2 * qty; 
+      if (asset.dividendType === 'mid') midMonthDividend += totalDivValue / 6; 
+      else endMonthDividend += totalDivValue / 6; 
     } 
-    // 👇 연간 배당일 경우 월 평균을 구하기 위해 12로 나누어 합산합니다.
     else if (asset.dividendMonth === '연간') { 
-      annualDiv = Number(asset.dividendAmount) * Number(asset.quantity); 
-      if (asset.dividendType === 'mid') midMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 12; 
-      else endMonthDividend += (Number(asset.dividendAmount) * Number(asset.quantity)) / 12; 
+      annualDiv = totalDivValue; 
+      if (asset.dividendType === 'mid') midMonthDividend += totalDivValue / 12; 
+      else endMonthDividend += totalDivValue / 12; 
     }
     totalAnnualDividend += annualDiv;
   });
@@ -399,6 +412,7 @@ const portfolioStats = useMemo(() => {
   const totalProfit = totalCurrent - totalInvested;
   const profitRate = totalInvested > 0 ? (totalProfit / totalInvested) * 100 : 0;
   const dividendYield = totalCurrent > 0 ? (totalAnnualDividend / totalCurrent) * 100 : 0;
+  
   return { totalInvested, totalCurrent, totalProfit, profitRate, totalAnnualDividend, dividendYield, midMonthDividend, endMonthDividend };
 }, [assets]);
 
